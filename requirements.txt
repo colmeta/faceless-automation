@@ -1,0 +1,9 @@
+python-dotenv
+schedule
+requests
+youtube-transcript-api
+google-api-python-client
+google-generativeai
+anthropic
+openai
+groq
