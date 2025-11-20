@@ -1,9 +1,23 @@
+# Core automation
 google-generativeai
 anthropic
 openai
-groq
 youtube-transcript-api
 google-api-python-client
+google-auth-oauthlib
+google-auth-httplib2
 python-dotenv
 schedule
 requests
+groq
+flask
+
+# VIDEO GENERATION (CRITICAL!)
+moviepy>=1.0.3
+pillow>=10.0.0
+numpy>=1.24.0
+yt-dlp>=2023.10.0
+gtts>=2.4.0
+
+# Optional but recommended
+openai-whisper
