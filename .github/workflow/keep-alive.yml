@@ -1,0 +1,160 @@
+name: Faceless Automation Keep-Alive & Scheduler
+
+on:
+  schedule:
+    # Keep alive - ping every 10 minutes
+    - cron: '*/10 * * * *'
+    
+    # Pre-wake 5 minutes before daily automation (8:55 AM UTC)
+    - cron: '55 8 * * *'
+    
+    # Afternoon session pre-wake (1:55 PM UTC)
+    - cron: '55 13 * * *'
+    
+    # Evening session pre-wake (6:55 PM UTC)
+    - cron: '55 18 * * *'
+  
+  workflow_dispatch:  # Manual trigger
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'ping'
+        type: choice
+        options:
+          - ping
+          - trigger_automation
+          - health_check
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Determine Action
+        id: action
+        run: |
+          HOUR=$(date -u +%H)
+          MINUTE=$(date -u +%M)
+          
+          # Check if this is a pre-wake time (55 minutes past hour)
+          if [ "$MINUTE" == "55" ]; then
+            echo "action=pre-wake" >> $GITHUB_OUTPUT
+            echo "🚀 Pre-wake ping - Automation starting in 5 minutes"
+          else
+            echo "action=keep-alive" >> $GITHUB_OUTPUT
+            echo "💓 Keep-alive ping"
+          fi
+      
+      - name: Pre-Wake Intensive Ping
+        if: steps.action.outputs.action == 'pre-wake'
+        run: |
+          echo "🔥 INTENSIVE PRE-WAKE SEQUENCE"
+          echo "Waking up Render instance..."
+          
+          for i in {1..5}; do
+            echo "Ping attempt $i/5..."
+            curl -s -o /dev/null -w "Status: %{http_code}, Time: %{time_total}s\n" \
+              https://${{ secrets.RENDER_APP_NAME }}.onrender.com/health || true
+            sleep 30
+          done
+          
+          echo "✅ Instance should be fully awake now"
+      
+      - name: Standard Keep-Alive Ping
+        if: steps.action.outputs.action == 'keep-alive'
+        run: |
+          echo "💓 Standard keep-alive ping"
+          curl -s -o /dev/null -w "Status: %{http_code}\n" \
+            https://${{ secrets.RENDER_APP_NAME }}.onrender.com/health || true
+      
+      - name: Trigger Automation (Manual Only)
+        if: github.event.inputs.action == 'trigger_automation'
+        run: |
+          echo "🚀 Manually triggering automation..."
+          curl -X POST https://${{ secrets.RENDER_APP_NAME }}.onrender.com/trigger \
+            -H "Authorization: Bearer ${{ secrets.AUTOMATION_TOKEN }}" || true
+      
+      - name: Health Check Report
+        if: github.event.inputs.action == 'health_check'
+        run: |
+          echo "🏥 Comprehensive health check..."
+          
+          response=$(curl -s https://${{ secrets.RENDER_APP_NAME }}.onrender.com/health)
+          echo "Response: $response"
+          
+          # Check if response contains expected fields
+          if echo "$response" | grep -q "status"; then
+            echo "✅ Health check passed"
+          else
+            echo "❌ Health check failed"
+            exit 1
+          fi
+      
+      - name: Log Status
+        run: |
+          echo "════════════════════════════════════════"
+          echo "Timestamp: $(date -u)"
+          echo "Action: ${{ steps.action.outputs.action }}"
+          echo "Render App: ${{ secrets.RENDER_APP_NAME }}"
+          echo "════════════════════════════════════════"
+
+  # Backup job - ensure automation runs even if Render is down
+  backup-scheduler:
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '0 9 * * *' || github.event.schedule == '0 14 * * *' || github.event.schedule == '0 19 * * *'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+      
+      - name: Set up environment variables
+        run: |
+          echo "YOUTUBE_API_KEY=${{ secrets.YOUTUBE_API_KEY }}" >> .env
+          echo "PIXABAY_API_KEY=${{ secrets.PIXABAY_API_KEY }}" >> .env
+          echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
+      
+      - name: Run Automation Locally (Backup)
+        run: |
+          echo "🆘 Running automation as backup..."
+          python3 master_automation.py --mode run-once || echo "⚠️ Backup automation failed"
+      
+      - name: Upload Logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: automation-logs
+          path: |
+            *.log
+            faceless_empire/reports/*.txt
+          retention-days: 7
+
+  # Monitor and alert
+  monitor:
+    runs-on: ubuntu-latest
+    needs: [keep-alive]
+    if: failure()
+    
+    steps:
+      - name: Send Failure Alert
+        run: |
+          echo "🚨 ALERT: Keep-alive job failed"
+          echo "This could mean your Render instance is down"
+          echo "Check: https://dashboard.render.com"
+          
+          # Optional: Send to Discord/Slack webhook
+          # curl -X POST ${{ secrets.DISCORD_WEBHOOK }} \
+          #   -H "Content-Type: application/json" \
+          #   -d '{"content": "🚨 Render instance health check failed!"}'
