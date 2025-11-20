@@ -2,7 +2,7 @@
 """
 🚀 COMPLETE FACELESS LAUNCH SYSTEM
 Everything you need to launch TODAY - Scripts, Hashtags, Analytics, Thumbnails, Competitor Analysis
-"""
+""" 
 
 import os
 import json
