@@ -105,7 +105,7 @@ def status():
             'gemini_api': bool(os.getenv('GEMINI_API_KEY')),
             'cloudinary': CLOUDINARY_ENABLED,
             'anthropic_api': bool(os.getenv('ANTHROPIC_API_KEY')),
-            'openai_api': bool(os.getenv('OPENAI_API_KEY'))
+            'openai_api': bool(os.getenv('OPENAI_API_KEY')),
             'groq_api': bool(os.getenv('GROQ_API_KEY')),
         }
         
