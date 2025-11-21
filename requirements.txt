@@ -12,12 +12,15 @@ requests
 groq
 flask
 
-# VIDEO GENERATION (CRITICAL!)
+# VIDEO GENERATION
 moviepy>=1.0.3
 pillow>=10.0.0
 numpy>=1.24.0
 yt-dlp>=2023.10.0
 gtts>=2.4.0
+
+# CLOUD STORAGE (IMPORTANT!)
+cloudinary>=1.36.0
 
 # Optional but recommended
 openai-whisper
