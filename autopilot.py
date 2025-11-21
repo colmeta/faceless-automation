@@ -25,6 +25,11 @@ except ImportError:
     anthropic = None
 
 try:
+    from groq import Groq
+except ImportError:
+    Groq = None
+    
+try:
     import openai
 except ImportError:
     openai = None
