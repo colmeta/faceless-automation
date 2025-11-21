@@ -52,6 +52,7 @@ class Config:
     # API Keys
     YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY')
     GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+    GROQ_API_KEY = os.getenv('GROQ_API_KEY')
     CLAUDE_API_KEY = os.getenv('ANTHROPIC_API_KEY')
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
     
@@ -84,7 +85,10 @@ class Config:
             missing.append("YOUTUBE_API_KEY")
         if not Config.GEMINI_API_KEY:
             missing.append("GEMINI_API_KEY")
-        
+
+        if not Config.GROQ_API_KEY:
+    logger.warning("⚠️ GROQ_API_KEY missing - Groq analysis disabled")
+    
         if missing:
             logger.error(f"❌ Missing critical env vars: {', '.join(missing)}")
             return False
@@ -134,7 +138,11 @@ class MultiLLMAnalyzer:
     def __init__(self):
         if Config.GEMINI_API_KEY:
             genai.configure(api_key=Config.GEMINI_API_KEY)
-        
+
+        self.groq_client = None
+        if Config.GROQ_API_KEY and Groq:
+            self.groq_client = Groq(api_key=Config.GROQ_API_KEY)
+
         self.claude_client = None
         if Config.CLAUDE_API_KEY and anthropic:
             self.claude_client = anthropic.Anthropic(api_key=Config.CLAUDE_API_KEY)
@@ -191,6 +199,40 @@ IMPORTANT: Return ONLY valid JSON, no markdown or extra text."""
         """Analyze with Anthropic Claude"""
         if not self.claude_client:
             return {"error": "Claude client not configured", "model": "Claude"}
+
+        def analyze_with_groq(self, transcript: str) -> Dict:
+    """Analyze with Groq (fast + free)"""
+    if not self.groq_client:
+        return {"error": "Groq client not configured", "model": "Groq"}
+    
+    try:
+        logger.info("⚡ Analyzing with Groq...")
+        response = self.groq_client.chat.completions.create(
+            model="llama-3.1-70b-versatile",
+            max_tokens=1000,
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"{self.get_analysis_prompt()}\n\nTranscript:\n{transcript[:8000]}"
+                }
+            ]
+        )
+        
+        text = response.choices[0].message.content
+        import re
+        json_match = re.search(r'\{.*\}', text, re.DOTALL)
+        if json_match:
+            result = json.loads(json_match.group())
+            result['model'] = 'Groq'
+            logger.info("✅ Groq analysis complete")
+            return result
+        
+        return {"error": "Failed to parse Groq response", "raw": text, "model": "Groq"}
+    
+    except Exception as e:
+        logger.error(f"❌ Groq error: {e}")
+        return {"error": str(e), "model": "Groq"}
+
         
         try:
             logger.info("🟣 Analyzing with Claude...")
@@ -261,7 +303,12 @@ IMPORTANT: Return ONLY valid JSON, no markdown or extra text."""
         gemini_result = self.analyze_with_gemini(transcript)
         if "error" not in gemini_result:
             analyses.append(gemini_result)
-        
+
+        # Try Groq
+        groq_result = self.analyze_with_groq(transcript)
+        if "error" not in groq_result:
+            analyses.append(groq_result)
+
         # Try Claude
         claude_result = self.analyze_with_claude(transcript)
         if "error" not in claude_result:
