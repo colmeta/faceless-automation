@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 import shutil
 import cloudinary
 import cloudinary.uploader
+import cloudinary.api
 from pathlib import Path
 
 load_dotenv()
@@ -105,6 +106,7 @@ def status():
             'cloudinary': CLOUDINARY_ENABLED,
             'anthropic_api': bool(os.getenv('ANTHROPIC_API_KEY')),
             'openai_api': bool(os.getenv('OPENAI_API_KEY'))
+            'groq_api': bool(os.getenv('GROQ_API_KEY')),
         }
         
         return jsonify({
