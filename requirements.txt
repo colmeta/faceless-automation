@@ -11,6 +11,7 @@ schedule
 requests
 groq
 flask
+gunicorn>=21.2.0
 
 # VIDEO GENERATION
 moviepy>=1.0.3
