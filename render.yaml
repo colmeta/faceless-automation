@@ -4,7 +4,7 @@ services:
     env: python
     plan: free
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "python health_server.py"
+    startCommand: "gunicorn --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120 health_server:app"
     envVars:
       - key: YOUTUBE_API_KEY
         sync: false
@@ -12,8 +12,17 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
-```
-
-### `Procfile` (if using Procfile instead):
-```
-web: python health_server.py
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: AUTOMATION_TOKEN
+        sync: false
+      - key: RENDER_EXTERNAL_URL
+        value: https://anslyzer.onrender.com
