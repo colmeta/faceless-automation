@@ -347,7 +347,6 @@ def self_ping():
                 
         except Exception as e:
             logger.error(f"❌ Self-ping failed: {e}")
-
 def start_scheduled_automation():
     """Start automation scheduler"""
     import schedule
@@ -360,6 +359,19 @@ def start_scheduled_automation():
     schedule.every().day.at("19:00").do(run_automation_once)
     
     logger.info("✅ Scheduled: 9 AM, 2 PM, 7 PM UTC daily")
+    
+    # NEW: Check if we should run immediately (within 30 min of scheduled time)
+    from datetime import datetime
+    now = datetime.utcnow()
+    current_hour = now.hour
+    current_minute = now.minute
+    
+    scheduled_hours = [9, 14, 19]
+    for hour in scheduled_hours:
+        if current_hour == hour and current_minute < 30:
+            logger.info(f"🚀 Running missed {hour}:00 schedule...")
+            threading.Thread(target=run_automation_once, daemon=True).start()
+            break
     
     while True:
         schedule.run_pending()
