@@ -539,3 +539,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+# Aliases for compatibility
+FacelessAutomationPipeline = VideoGenerationPipeline
+FreeConfig = VideoGenConfig
