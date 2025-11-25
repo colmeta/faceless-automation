@@ -291,6 +291,11 @@ def run_automation_once():
         app.config['LAST_RUN'] = datetime.now().isoformat()
         
         # Import here to avoid circular imports
+        # Use render-optimized version
+        import sys
+        if 'faceless_automation_render' not in sys.modules:
+            logger.info("📦 Using Render-optimized pipeline")
+        
         from master_automation import MasterOrchestrator
         
         orchestrator = MasterOrchestrator()

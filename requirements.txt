@@ -13,15 +13,15 @@ groq
 flask
 gunicorn>=21.2.0
 
-# VIDEO GENERATION
+# VIDEO GENERATION (Render optimized - no Whisper)
 moviepy>=1.0.3
 pillow>=10.0.0
 numpy>=1.24.0
 yt-dlp>=2023.10.0
 gtts>=2.4.0
 
-# CLOUD STORAGE (IMPORTANT!)
+# CLOUD STORAGE (REQUIRED for Render)
 cloudinary>=1.36.0
 
-# Optional but recommended
-openai-whisper
+# ImageMagick for moviepy text (installed via Aptfile)
+# ffmpeg (installed via Aptfile)

@@ -4,7 +4,9 @@ services:
     env: python
     plan: free
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "gunicorn --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120 health_server:app"
+    startCommand: "gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 2 --timeout 300 --max-requests 100 --max-requests-jitter 10 health_server:app"
+    buildpacks:
+      - url: https://github.com/heroku/heroku-buildpack-apt
     envVars:
       - key: YOUTUBE_API_KEY
         sync: false

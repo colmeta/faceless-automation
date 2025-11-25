@@ -742,4 +742,15 @@ class LaunchCommandCenter:
         
         # Analyze top 3 channels deeply
         for channel in top_channels[:3]:
-            viral_videos =
+            viral_videos = self.competitor_spy.analyze_viral_videos(channel['channel_id'])
+            channel['viral_videos'] = viral_videos
+        
+        with open('reports/competitor_analysis.json', 'w') as f:
+            json.dump(report, f, indent=2)
+        
+        logger.info(f"✅ Competition analysis complete: {len(top_channels)} channels analyzed")
+        return report
+
+if __name__ == "__main__":
+    center = LaunchCommandCenter()
+    center.prepare_30_day_launch()

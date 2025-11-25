@@ -199,40 +199,6 @@ IMPORTANT: Return ONLY valid JSON, no markdown or extra text."""
         """Analyze with Anthropic Claude"""
         if not self.claude_client:
             return {"error": "Claude client not configured", "model": "Claude"}
-
-        def analyze_with_groq(self, transcript: str) -> Dict:
-    """Analyze with Groq (fast + free)"""
-    if not self.groq_client:
-        return {"error": "Groq client not configured", "model": "Groq"}
-    
-    try:
-        logger.info("⚡ Analyzing with Groq...")
-        response = self.groq_client.chat.completions.create(
-            model="llama-3.1-70b-versatile",
-            max_tokens=1000,
-            messages=[
-                {
-                    "role": "user",
-                    "content": f"{self.get_analysis_prompt()}\n\nTranscript:\n{transcript[:8000]}"
-                }
-            ]
-        )
-        
-        text = response.choices[0].message.content
-        import re
-        json_match = re.search(r'\{.*\}', text, re.DOTALL)
-        if json_match:
-            result = json.loads(json_match.group())
-            result['model'] = 'Groq'
-            logger.info("✅ Groq analysis complete")
-            return result
-        
-        return {"error": "Failed to parse Groq response", "raw": text, "model": "Groq"}
-    
-    except Exception as e:
-        logger.error(f"❌ Groq error: {e}")
-        return {"error": str(e), "model": "Groq"}
-
         
         try:
             logger.info("🟣 Analyzing with Claude...")
@@ -294,6 +260,39 @@ IMPORTANT: Return ONLY valid JSON, no markdown or extra text."""
         except Exception as e:
             logger.error(f"❌ GPT error: {e}")
             return {"error": str(e), "model": "GPT"}
+    
+    def analyze_with_groq(self, transcript: str) -> Dict:
+        """Analyze with Groq (fast + free)"""
+        if not self.groq_client:
+            return {"error": "Groq client not configured", "model": "Groq"}
+        
+        try:
+            logger.info("⚡ Analyzing with Groq...")
+            response = self.groq_client.chat.completions.create(
+                model="llama-3.1-70b-versatile",
+                max_tokens=1000,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": f"{self.get_analysis_prompt()}\n\nTranscript:\n{transcript[:8000]}"
+                    }
+                ]
+            )
+            
+            text = response.choices[0].message.content
+            import re
+            json_match = re.search(r'\{.*\}', text, re.DOTALL)
+            if json_match:
+                result = json.loads(json_match.group())
+                result['model'] = 'Groq'
+                logger.info("✅ Groq analysis complete")
+                return result
+            
+            return {"error": "Failed to parse Groq response", "raw": text, "model": "Groq"}
+        
+        except Exception as e:
+            logger.error(f"❌ Groq error: {e}")
+            return {"error": str(e), "model": "Groq"}
     
     def get_best_analysis(self, transcript: str) -> Dict:
         """Run analysis with available models and pick best result"""
