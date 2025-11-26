@@ -1,3 +1,45 @@
+#!/usr/bin/env python3
+"""
+👑 MASTER AUTOMATION - COMPLETE FACELESS EMPIRE
+Combines: Viral Hunting + Video Generation + Multi-Platform Upload + Analytics
+Run once daily = Fully automated income stream
+"""
+
+import os
+import sys
+import json
+import time
+import schedule
+from datetime import datetime, timedelta
+from pathlib import Path
+import logging
+
+# Import all modules
+try:
+    # Your original autopilot
+    from autopilot import AutopilotOrchestrator, Config as AutopilotConfig
+    
+    # New video generation system (Render optimized)
+    from faceless_automation_render import FacelessAutomationPipeline, FreeConfig
+    
+    # Launch system components
+    from complete_launch_system import (
+        ViralScriptGenerator,
+        HashtagStrategy,
+        AnalyticsTracker,
+        ThumbnailGenerator,
+        CompetitorSpy,
+        LaunchCommandCenter
+    )
+except ImportError as e:
+    print(f"⚠️  Import error: {e}")
+    print("Make sure all Python files are in the same directory!")
+    sys.exit(1)
+
+# Setup logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler('master_automation.log'),
         logging.StreamHandler()
@@ -159,9 +201,11 @@ class MasterOrchestrator:
             
         except Exception as e:
             logger.error(f"❌ Daily automation failed: {e}")
+            import traceback
+            traceback.print_exc()
             raise
     
-    def _generate_daily_report(self, analysis: Dict, results: Dict, thumbnail_path: Path):
+    def _generate_daily_report(self, analysis: dict, results: dict, thumbnail_path: Path):
         """Generate daily report"""
         
         report = {
@@ -211,12 +255,12 @@ class MasterOrchestrator:
             
             f.write("\n" + "="*80 + "\n")
     
-    def _print_daily_summary(self, analysis: Dict, results: Dict):
+    def _print_daily_summary(self, analysis: dict, results: dict):
         """Print daily summary to console"""
         
-        print("\n" + "╔" + "═"*78 + "╗")
+        print("\n" + "╔" + "="*78 + "╗")
         print("║" + " "*25 + "📊 DAILY SUMMARY" + " "*37 + "║")
-        print("╚" + "═"*78 + "╝\n")
+        print("╚" + "="*78 + "╝\n")
         
         print(f"📹 Title: {analysis['short_hook']}")
         print(f"🎯 Tool: {analysis.get('affiliate_angle', 'AI Tool')}")
@@ -236,9 +280,9 @@ class MasterOrchestrator:
         print(f"  4. Reply to comments within 1 hour")
         print(f"  5. Check analytics tomorrow\n")
         
-        print("╔" + "═"*78 + "╗")
+        print("╔" + "="*78 + "╗")
         print("║" + " "*20 + "🔥 KEEP GRINDING! EMPIRE BUILDING! 🔥" + " "*20 + "║")
-        print("╚" + "═"*78 + "╝\n")
+        print("╚" + "="*78 + "╝\n")
     
     def run_weekly_analysis(self):
         """Run comprehensive weekly analysis"""
@@ -250,13 +294,6 @@ class MasterOrchestrator:
             # Get best performers
             best_videos = self.analytics.get_best_performers(10)
             insights = self.analytics.get_optimization_insights()
-            
-            # Analyze competition
-            try:
-                competitor_report = self.commander.analyze_competition('AI tools')
-            except:
-                competitor_report = None
-                logger.warning("⚠️  Competitor analysis skipped")
             
             # Generate weekly report
             report_file = MasterConfig.REPORTS / f"WEEKLY_REPORT_{datetime.now().strftime('%Y_W%W')}.txt"
@@ -370,8 +407,7 @@ def main():
             # Launch setup
             print("\n📋 Running launch setup...\n")
             launch_package = orchestrator.commander.prepare_30_day_launch()
-            checklist = orchestrator.commander.create_launch_checklist()
-            print(checklist)
+            print("\n✅ 30-day launch package created!")
             
         elif choice == '5':
             # Competition analysis
@@ -391,6 +427,8 @@ def main():
     
     except Exception as e:
         logger.error(f"\n❌ Fatal error: {e}\n")
+        import traceback
+        traceback.print_exc()
         print("\n💡 TIP: Make sure all dependencies are installed and API keys are set!\n")
         sys.exit(1)
 
