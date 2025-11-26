@@ -127,6 +127,9 @@ class TranscriptExtractor:
         except TranscriptsDisabled:
             logger.error(f"❌ Transcripts disabled for {video_id}")
             return None
+        except AttributeError:
+            logger.error(f"❌ YouTubeTranscriptApi error: 'list_transcripts' not found. Update library.")
+            return None
         except Exception as e:
             logger.error(f"❌ Transcript error: {e}")
             return None

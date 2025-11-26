@@ -20,7 +20,7 @@ from moviepy.editor import (
     VideoFileClip, AudioFileClip, TextClip, CompositeVideoClip,
     concatenate_videoclips, ImageClip, ColorClip
 )
-from moviepy.video.fx import resize, fadein, fadeout
+from moviepy.video.fx.all import resize, fadein, fadeout
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 from gtts import gTTS
@@ -91,18 +91,39 @@ class SimpleSubtitleGenerator:
             end_time = min((i + 1) * time_per_sentence, duration)
             
             try:
-                # Use default font (no external fonts required)
-                txt = TextClip(
-                    sentence.strip().upper()[:50],  # Limit length
-                    fontsize=60,
+                # Professional Caption Style
+                # 1. Background box for readability
+                # 2. Better font (Arial-Bold is usually available on Linux/Render)
+                
+                # Calculate text size to size the background box
+                # Note: TextClip doesn't give exact size easily without rendering, 
+                # so we use a fixed width box or full width strip
+                
+                text_clip = TextClip(
+                    sentence.strip().upper(),
+                    fontsize=55,
+                    font='Arial-Bold',  # Use a bolder font
                     color='white',
                     stroke_color='black',
                     stroke_width=2,
                     method='caption',
-                    size=(video_size[0] - 100, None)
-                ).set_position(('center', 'center')).set_start(start_time).set_duration(end_time - start_time)
+                    size=(video_size[0] - 140, None),
+                    align='center'
+                )
                 
-                clips.append(txt)
+                # Create a semi-transparent background box
+                # We'll make a strip at the bottom-center
+                txt_w, txt_h = text_clip.size
+                
+                # Composite text over background
+                txt_composite = CompositeVideoClip([
+                    text_clip.set_position('center')
+                ], size=(video_size[0], txt_h + 40))
+                
+                # Position the whole thing
+                final_clip = txt_composite.set_position(('center', 'center')).set_start(start_time).set_duration(end_time - start_time)
+                
+                clips.append(final_clip)
             except Exception as e:
                 logger.warning(f"⚠️ Skipping caption: {e}")
                 continue
@@ -240,31 +261,64 @@ class VideoComposer:
                 (VideoGenConfig.WIDTH, VideoGenConfig.HEIGHT)
             )
             
-            # Step 5: Add hook text at start
+            # Step 5: Add hook text at start (Professional Style)
             try:
+                hook_text = script['hook'].upper()[:50]
+                
+                # Main Hook Text
                 hook_clip = TextClip(
-                    script['hook'].upper()[:40],
-                    fontsize=70,
-                    color='yellow',
+                    hook_text,
+                    fontsize=75,
+                    font='Arial-Bold',
+                    color='#FFD700',  # Gold/Yellow
                     stroke_color='black',
                     stroke_width=3,
                     method='caption',
-                    size=(VideoGenConfig.WIDTH - 100, None)
-                ).set_position(('center', 200)).set_duration(3).fx(fadein, 0.5)
+                    size=(VideoGenConfig.WIDTH - 100, None),
+                    align='center'
+                ).set_position(('center', 250)).set_duration(3.5)
+                
+                # Apply fadein effect correctly
+                hook_clip = hook_clip.fx(fadein, 0.5)
+                
+            except Exception as e:
+                logger.warning(f"⚠️ Hook text skipped: {e}")
+                hook_clip = None
             except Exception as e:
                 logger.warning(f"⚠️ Hook text skipped: {e}")
                 hook_clip = None
             
-            # Step 6: Add CTA at end
+            # Step 6: Add CTA at end (Professional Style)
             try:
+                cta_text = script['cta'].upper()
+                
                 cta_clip = TextClip(
-                    script['cta'].upper()[:30],
-                    fontsize=50,
+                    cta_text,
+                    fontsize=60,
+                    font='Arial-Bold',
                     color='white',
-                    bg_color='red',
+                    bg_color='#CC0000',  # Dark Red background
                     method='caption',
-                    size=(VideoGenConfig.WIDTH - 100, None)
-                ).set_position(('center', 'bottom')).set_start(max(0, duration - 3)).set_duration(3)
+                    size=(VideoGenConfig.WIDTH - 200, None),
+                    align='center'
+                ).set_position(('center', 1400)).set_start(max(0, duration - 4)).set_duration(4)
+                
+                # Add a "Subscribe" hint
+                sub_clip = TextClip(
+                    "SUBSCRIBE FOR MORE",
+                    fontsize=40,
+                    font='Arial-Bold',
+                    color='white',
+                    stroke_color='black',
+                    stroke_width=2,
+                    method='caption',
+                    align='center'
+                ).set_position(('center', 1550)).set_start(max(0, duration - 4)).set_duration(4)
+                
+            except Exception as e:
+                logger.warning(f"⚠️ CTA text skipped: {e}")
+                cta_clip = None
+                sub_clip = None
             except Exception as e:
                 logger.warning(f"⚠️ CTA text skipped: {e}")
                 cta_clip = None
@@ -275,6 +329,8 @@ class VideoComposer:
                 all_clips.append(hook_clip)
             if cta_clip:
                 all_clips.append(cta_clip)
+            if 'sub_clip' in locals() and sub_clip:
+                all_clips.append(sub_clip)
             all_clips.extend(caption_clips)
             
             final_video = CompositeVideoClip(

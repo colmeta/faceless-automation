@@ -289,31 +289,6 @@ class MasterOrchestrator:
                 request = youtube.search().list(
                     q='AI tools tutorial -crypto',
                     part='snippet',
-                    type='video',
-                    maxResults=5,
-                    order='viewCount',
-                    publishedAfter=(datetime.utcnow() - timedelta(days=7)).isoformat() + 'Z'
-                )
-                
-                response = request.execute()
-                videos = response.get('items', [])
-                
-                if not videos:
-                    logger.warning("⚠️ No videos found, using default analysis")
-                    analysis = self.analyzer._create_default_analysis()
-                    video_id = None
-                else:
-                    video_id = videos[0]['id']['videoId']
-                    logger.info(f"✅ Found video: {videos[0]['snippet']['title'][:50]}")
-                    
-                    # Get transcript
-                    transcript = self.transcript_fixer.get_transcript(video_id)
-                    
-                    if transcript:
-                        analysis = self.analyzer.analyze_transcript(transcript)
-                    else:
-                        logger.warning("⚠️ No transcript available, using default analysis")
-                        analysis = self.analyzer._create_default_analysis()
             
             except Exception as e:
                 logger.error(f"❌ Video search failed: {e}")
