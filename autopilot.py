@@ -78,27 +78,27 @@ class Config:
     CONTENT_TYPES = ['Tutorial', 'Comparison', 'Hack', 'News', 'Review', 'Workflow']
     
     @staticmethod
-def check_env_vars():
-    """Verify essential environment variables"""
-    missing = []
-    if not Config.YOUTUBE_API_KEY:
-        missing.append("YOUTUBE_API_KEY")
-    if not Config.GEMINI_API_KEY:
-        missing.append("GEMINI_API_KEY")
-    
-    if missing:
-        logger.error(f"❌ Missing critical env vars: {', '.join(missing)}")
-        return False
-    
-    # Optional APIs (just warnings, not required)
-    if not Config.GROQ_API_KEY:
-        logger.warning("⚠️ GROQ_API_KEY missing - Groq analysis disabled")
-    if not Config.CLAUDE_API_KEY:
-        logger.warning("⚠️ ANTHROPIC_API_KEY missing - Claude analysis disabled")
-    if not Config.OPENAI_API_KEY:
-        logger.warning("⚠️ OPENAI_API_KEY missing - GPT analysis disabled")
-    
-    return True
+    def check_env_vars():
+        """Verify essential environment variables"""
+        missing = []
+        if not Config.YOUTUBE_API_KEY:
+            missing.append("YOUTUBE_API_KEY")
+        if not Config.GEMINI_API_KEY:
+            missing.append("GEMINI_API_KEY")
+        
+        if missing:
+            logger.error(f"❌ Missing critical env vars: {', '.join(missing)}")
+            return False
+        
+        # Optional APIs (just warnings, not required)
+        if not Config.GROQ_API_KEY:
+            logger.warning("⚠️ GROQ_API_KEY missing - Groq analysis disabled")
+        if not Config.CLAUDE_API_KEY:
+            logger.warning("⚠️ ANTHROPIC_API_KEY missing - Claude analysis disabled")
+        if not Config.OPENAI_API_KEY:
+            logger.warning("⚠️ OPENAI_API_KEY missing - GPT analysis disabled")
+        
+        return True
 
 # ==================== PHASE 1: TRANSCRIPT EXTRACTOR ====================
 class TranscriptExtractor:
