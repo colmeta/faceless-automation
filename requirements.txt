@@ -13,10 +13,13 @@ groq
 flask
 gunicorn>=21.2.0
 
-# VIDEO GENERATION (Render optimized - no Whisper)
-moviepy>=1.0.3
+# VIDEO GENERATION (Render optimized - MoviePy 1.0.3 REQUIRED)
+moviepy==1.0.3
 pillow>=10.0.0
-numpy>=1.24.0
+numpy>=1.24.0,<2.0.0
+imageio>=2.5.0
+decorator>=4.3.0
+tqdm>=4.0.0
 yt-dlp>=2023.10.0
 gtts>=2.4.0
 
