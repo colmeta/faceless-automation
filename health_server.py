@@ -282,7 +282,91 @@ def list_videos():
         logger.error(f"❌ List videos failed: {e}")
         return jsonify({'error': str(e)}), 500
 
-# ==================== BACKGROUND TASKS ====================
+@app.route('/debug-cloudinary', methods=['GET'])
+def debug_cloudinary():
+    """Debug Cloudinary configuration and upload"""
+    try:
+        # 1. Check Config
+        config_status = {
+            'cloud_name': os.getenv('CLOUDINARY_CLOUD_NAME'),
+            'api_key': os.getenv('CLOUDINARY_API_KEY')[:5] + '...' if os.getenv('CLOUDINARY_API_KEY') else None,
+            'api_secret': 'Set' if os.getenv('CLOUDINARY_API_SECRET') else 'Missing',
+            'enabled': CLOUDINARY_ENABLED
+        }
+        
+        if not CLOUDINARY_ENABLED:
+            return jsonify({'status': 'disabled', 'config': config_status}), 200
+            
+        # 2. Create dummy file
+        dummy_path = "debug_test.txt"
+        with open(dummy_path, "w") as f:
+            f.write(f"Debug upload test {datetime.now()}")
+            
+        # 3. Try Upload
+        logger.info("🧪 Starting debug upload...")
+        result = cloudinary.uploader.upload(
+            dummy_path,
+            resource_type="raw",
+            public_id=f"debug/test_{int(time.time())}",
+            folder="faceless_debug"
+        )
+        
+        # 4. Cleanup
+        if os.path.exists(dummy_path):
+            os.remove(dummy_path)
+            
+        return jsonify({
+            'status': 'success',
+            'url': result.get('secure_url'),
+            'config': config_status
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Debug upload failed: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'config': config_status
+        }), 500
+
+@app.route('/debug-video', methods=['GET'])
+def debug_video():
+    """Debug video generation (1 second test)"""
+    try:
+        from faceless_automation_render import VideoGenerationPipeline
+        
+        pipeline = VideoGenerationPipeline()
+        
+        # Simple 1-second script
+        script = {
+            'narration': "Test.",
+            'hook': "TEST",
+            'cta': "TEST",
+            'topic': "test"
+        }
+        
+        # Override duration for speed
+        from faceless_automation_render import VideoGenConfig
+        VideoGenConfig.DURATION = 2
+        
+        # Generate
+        logger.info("🧪 Starting debug video generation...")
+        video_path = pipeline.generate_single_video(script, f"debug_{int(time.time())}.mp4")
+        
+        return jsonify({
+            'status': 'success',
+            'result': video_path,
+            'is_url': video_path.startswith('http')
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Debug video failed: {e}")
+        import traceback
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
 
 def run_automation_once():
     """Run automation cycle once"""
