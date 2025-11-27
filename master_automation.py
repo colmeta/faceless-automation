@@ -14,7 +14,9 @@ import json
 import time
 import logging
 from datetime import datetime, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
+from youtube_auto_uploader import YouTubeUploader
 
 # Setup logging
 logging.basicConfig(
@@ -270,6 +272,14 @@ class MasterOrchestrator:
         self.analyzer = SafeAnalyzer()
         self.video_composer = VideoComposerFixed()
         
+        # Initialize YouTube Uploader
+        try:
+            self.youtube_uploader = YouTubeUploader()
+            logger.info("✅ YouTube Uploader initialized")
+        except Exception as e:
+            logger.warning(f"⚠️ YouTube Uploader not available: {e}")
+            self.youtube_uploader = None
+        
         logger.info("✅ Master Orchestrator initialized")
     
     def run_daily_automation(self):
@@ -335,6 +345,7 @@ class MasterOrchestrator:
             
             logger.info("✅ Video generated successfully")
             
+            
             # PHASE 3: Upload to Cloudinary (if configured)
             logger.info("\n📍 PHASE 3: Uploading to Cloudinary...")
             
@@ -361,12 +372,43 @@ class MasterOrchestrator:
                     cloudinary_url = result['secure_url']
                     logger.info(f"✅ Cloudinary URL: {cloudinary_url}")
                     
-                    # Delete local file after upload (save space on free tier)
-                    os.remove(output_path)
-                    logger.info("🗑️ Local file deleted (saved to Cloudinary)")
-                
                 except Exception as e:
                     logger.error(f"⚠️ Cloudinary upload failed: {e}")
+
+            # PHASE 4: Upload to YouTube
+            logger.info("\n📍 PHASE 4: Uploading to YouTube...")
+            youtube_url = None
+            
+            if self.youtube_uploader:
+                try:
+                    logger.info("🚀 Starting YouTube upload...")
+                    
+                    # Prepare metadata
+                    hashtags = [tag.strip() for tag in analysis['key_topics'].split(',')]
+                    
+                    upload_result = self.youtube_uploader.upload_shorts_optimized(
+                        video_path=output_path,
+                        hook=analysis['short_hook'],
+                        topic=analysis['key_topics'],
+                        hashtags=hashtags,
+                        affiliate_link=analysis.get('cta_link', 'https://example.com')
+                    )
+                    
+                    youtube_url = upload_result['url']
+                    logger.info(f"✅ YouTube Upload Successful: {youtube_url}")
+                    
+                except Exception as e:
+                    logger.error(f"❌ YouTube upload failed: {e}")
+            else:
+                logger.warning("⚠️ Skipping YouTube upload (uploader not initialized)")
+            
+            # Cleanup local file only after all uploads are done
+            if os.path.exists(output_path):
+                try:
+                    os.remove(output_path)
+                    logger.info("🗑️ Local file deleted")
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not delete local file: {e}")
             
             logger.info("\n" + "="*80)
             logger.info("🎉 DAILY AUTOMATION COMPLETE!")
