@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """
-📤 YOUTUBE AUTO-UPLOADER - COMPLETE SOLUTION
-Handles OAuth authentication and automatic video uploads
+📤 YOUTUBE AUTO-UPLOADER - RENDER COMPATIBLE
+Supports both local file and environment variable authentication
 """
 
 import os
 import pickle
 import logging
+import json
+import base64
 from pathlib import Path
 from typing import Dict, Optional
 from datetime import datetime
-import json
 
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -32,13 +33,56 @@ class YouTubeUploader:
         self.youtube = None
         self.authenticate()
     
+    def _get_client_config(self):
+        """Get client config from file or environment variable"""
+        
+        # Try environment variable first (for Render)
+        client_secret_env = os.getenv('YOUTUBE_CLIENT_SECRET_JSON')
+        if client_secret_env:
+            logger.info("📋 Using client secret from environment variable")
+            try:
+                return json.loads(client_secret_env)
+            except:
+                # Try base64 decode
+                try:
+                    decoded = base64.b64decode(client_secret_env)
+                    return json.loads(decoded)
+                except Exception as e:
+                    logger.error(f"Failed to parse YOUTUBE_CLIENT_SECRET_JSON: {e}")
+        
+        # Fallback to file
+        if os.path.exists(self.CLIENT_SECRET_FILE):
+            logger.info("📋 Using client secret from file")
+            with open(self.CLIENT_SECRET_FILE, 'r') as f:
+                return json.load(f)
+        
+        raise FileNotFoundError(
+            f"❌ No client secret found!\n"
+            f"Set YOUTUBE_CLIENT_SECRET_JSON environment variable or provide {self.CLIENT_SECRET_FILE}"
+        )
+    
+    def _get_token_from_env(self):
+        """Try to get token from environment variable"""
+        token_env = os.getenv('YOUTUBE_TOKEN_PICKLE_BASE64')
+        if token_env:
+            logger.info("📋 Loading token from environment variable")
+            try:
+                token_bytes = base64.b64decode(token_env)
+                return pickle.loads(token_bytes)
+            except Exception as e:
+                logger.error(f"Failed to load token from env: {e}")
+        return None
+    
     def authenticate(self):
         """Handle OAuth authentication"""
         credentials = None
         
-        # Load existing credentials
-        if os.path.exists(self.TOKEN_FILE):
-            logger.info("📋 Loading existing credentials...")
+        # Try environment variable first (for Render)
+        credentials = self._get_token_from_env()
+        
+        # Try file if env variable not available
+        if not credentials and os.path.exists(self.TOKEN_FILE):
+            logger.info("📋 Loading credentials from file...")
             with open(self.TOKEN_FILE, 'rb') as token:
                 credentials = pickle.load(token)
         
@@ -46,22 +90,21 @@ class YouTubeUploader:
         if not credentials or not credentials.valid:
             if credentials and credentials.expired and credentials.refresh_token:
                 logger.info("🔄 Refreshing expired credentials...")
-                credentials.refresh(Request())
-            else:
-                if not os.path.exists(self.CLIENT_SECRET_FILE):
-                    raise FileNotFoundError(
-                        f"❌ {self.CLIENT_SECRET_FILE} not found!\n\n"
-                        "Get it from: https://console.cloud.google.com\n"
-                        "1. Create OAuth 2.0 Client ID\n"
-                        "2. Application type: Desktop app\n"
-                        "3. Download JSON and rename to client_secret.json"
-                    )
-                
+                try:
+                    credentials.refresh(Request())
+                except Exception as e:
+                    logger.error(f"Token refresh failed: {e}")
+                    credentials = None
+            
+            if not credentials:
+                # Need to do OAuth flow (only works locally)
                 logger.info("🔐 Starting OAuth flow...")
                 logger.info("👉 Your browser will open for authorization")
                 
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    self.CLIENT_SECRET_FILE,
+                client_config = self._get_client_config()
+                
+                flow = InstalledAppFlow.from_client_config(
+                    client_config,
                     self.SCOPES
                 )
                 credentials = flow.run_local_server(
@@ -69,11 +112,22 @@ class YouTubeUploader:
                     prompt='consent',
                     success_message='✅ Authorization successful! You can close this window.'
                 )
-            
-            # Save credentials
-            with open(self.TOKEN_FILE, 'wb') as token:
-                pickle.dump(credentials, token)
-            logger.info("✅ Credentials saved")
+                
+                # Save credentials to file
+                with open(self.TOKEN_FILE, 'wb') as token:
+                    pickle.dump(credentials, token)
+                logger.info("✅ Credentials saved to file")
+                
+                # Print base64 for environment variable
+                with open(self.TOKEN_FILE, 'rb') as token:
+                    token_bytes = token.read()
+                    token_b64 = base64.b64encode(token_bytes).decode()
+                    logger.info("\n" + "="*60)
+                    logger.info("📋 SAVE THIS TO RENDER ENVIRONMENT VARIABLE:")
+                    logger.info("Variable name: YOUTUBE_TOKEN_PICKLE_BASE64")
+                    logger.info("="*60)
+                    print(token_b64)
+                    logger.info("="*60 + "\n")
         
         # Build YouTube service
         self.youtube = build('youtube', 'v3', credentials=credentials)
@@ -86,7 +140,7 @@ class YouTubeUploader:
         description: str,
         tags: list = None,
         category: str = "28",  # Science & Technology
-        privacy: str = "public",  # public, private, or unlisted
+        privacy: str = "public",
         made_for_kids: bool = False
     ) -> Dict:
         """Upload video to YouTube"""
@@ -101,9 +155,9 @@ class YouTubeUploader:
         # Prepare request body
         body = {
             'snippet': {
-                'title': title[:100],  # Max 100 chars
-                'description': description[:5000],  # Max 5000 chars
-                'tags': tags[:500] if tags else [],  # Max 500 tags
+                'title': title[:100],
+                'description': description[:5000],
+                'tags': tags[:500] if tags else [],
                 'categoryId': category,
                 'defaultLanguage': 'en',
                 'defaultAudioLanguage': 'en'
@@ -119,7 +173,7 @@ class YouTubeUploader:
         # Upload file
         media = MediaFileUpload(
             video_path,
-            chunksize=1024*1024,  # 1MB chunks
+            chunksize=1024*1024,
             resumable=True,
             mimetype='video/mp4'
         )
@@ -139,7 +193,7 @@ class YouTubeUploader:
                 
                 if status:
                     progress = int(status.progress() * 100)
-                    if progress > last_progress + 10:  # Log every 10%
+                    if progress > last_progress + 10:
                         logger.info(f"   Upload progress: {progress}%")
                         last_progress = progress
             
@@ -149,9 +203,6 @@ class YouTubeUploader:
             logger.info(f"✅ Upload complete!")
             logger.info(f"   Video ID: {video_id}")
             logger.info(f"   URL: {video_url}")
-            
-            # Save upload record
-            self._save_upload_record(video_id, title, video_url)
             
             return {
                 'success': True,
@@ -163,52 +214,7 @@ class YouTubeUploader:
         
         except HttpError as e:
             logger.error(f"❌ Upload failed: {e}")
-            
-            error_reason = e.error_details[0]['reason'] if e.error_details else 'Unknown'
-            
-            # Common errors
-            if 'quotaExceeded' in str(e):
-                logger.error("📊 YouTube API quota exceeded (10,000 points/day)")
-                logger.error("   Wait until midnight PST for reset")
-            elif 'uploadLimitExceeded' in str(e):
-                logger.error("⏰ Upload limit exceeded (50 uploads/day)")
-            
             raise
-    
-    def _save_upload_record(self, video_id: str, title: str, url: str):
-        """Save upload record for tracking"""
-        record_file = 'upload_history.json'
-        
-        record = {
-            'video_id': video_id,
-            'title': title,
-            'url': url,
-            'uploaded_at': datetime.now().isoformat()
-        }
-        
-        # Load existing records
-        if os.path.exists(record_file):
-            with open(record_file, 'r') as f:
-                history = json.load(f)
-        else:
-            history = {'uploads': []}
-        
-        history['uploads'].append(record)
-        
-        # Save
-        with open(record_file, 'w') as f:
-            json.dump(history, f, indent=2)
-    
-    def get_upload_history(self) -> list:
-        """Get upload history"""
-        record_file = 'upload_history.json'
-        
-        if os.path.exists(record_file):
-            with open(record_file, 'r') as f:
-                history = json.load(f)
-            return history['uploads']
-        
-        return []
     
     def upload_shorts_optimized(
         self,
@@ -220,10 +226,8 @@ class YouTubeUploader:
     ) -> Dict:
         """Upload with YouTube Shorts optimization"""
         
-        # Build title (max 100 chars)
         title = f"{hook[:70]} #Shorts"
         
-        # Build description (max 5000 chars)
         description_parts = [
             hook,
             "",
@@ -240,17 +244,16 @@ class YouTubeUploader:
         description_parts.extend([
             "📱 Follow for daily AI tips",
             "",
-            " ".join(hashtags[:30]),  # Add hashtags
+            " ".join(hashtags[:30]),
             "",
             "---",
-            "This video is created using AI automation for educational purposes.",
+            "Created with AI automation for educational purposes.",
             "",
             "#AI #ArtificialIntelligence #Technology #Tutorial #Shorts"
         ])
         
         description = "\n".join(description_parts)
         
-        # Extract hashtags as tags
         tags = [tag.replace('#', '') for tag in hashtags]
         tags.extend(['AI', 'Artificial Intelligence', 'Technology', 'Tutorial', 'Shorts'])
         
@@ -259,99 +262,11 @@ class YouTubeUploader:
             title=title,
             description=description,
             tags=tags,
-            category="28",  # Science & Technology
+            category="28",
             privacy="public"
         )
 
 
-class SmartUploadScheduler:
-    """Schedule uploads at optimal times"""
-    
-    OPTIMAL_TIMES_UTC = {
-        'monday': ['14:00', '19:00'],
-        'tuesday': ['14:00', '19:00', '22:00'],
-        'wednesday': ['14:00', '19:00'],
-        'thursday': ['14:00', '19:00', '22:00'],
-        'friday': ['14:00', '19:00'],
-        'saturday': ['16:00', '20:00'],
-        'sunday': ['16:00', '20:00']
-    }
-    
-    def __init__(self):
-        self.uploader = YouTubeUploader()
-    
-    def should_upload_now(self) -> bool:
-        """Check if current time is optimal"""
-        from datetime import datetime
-        
-        now = datetime.utcnow()
-        day = now.strftime('%A').lower()
-        current_time = now.strftime('%H:%M')
-        
-        optimal_times = self.OPTIMAL_TIMES_UTC.get(day, [])
-        
-        # Check if within 30 minutes of optimal time
-        for opt_time in optimal_times:
-            opt_hour, opt_min = map(int, opt_time.split(':'))
-            curr_hour, curr_min = map(int, current_time.split(':'))
-            
-            time_diff = abs((opt_hour * 60 + opt_min) - (curr_hour * 60 + curr_min))
-            
-            if time_diff <= 30:  # Within 30 minutes
-                return True
-        
-        return False
-    
-    def upload_with_timing(self, video_path: str, metadata: Dict) -> Dict:
-        """Upload only at optimal times"""
-        if self.should_upload_now():
-            logger.info("⏰ Optimal upload time - proceeding")
-            return self.uploader.upload_shorts_optimized(
-                video_path=video_path,
-                **metadata
-            )
-        else:
-            logger.info("⏰ Not optimal time - queuing for later")
-            return {'success': False, 'reason': 'Not optimal time', 'queued': True}
-
-
-# ==================== USAGE EXAMPLE ====================
-
-def main():
-    """Example usage"""
-    
-    # Initialize uploader
-    uploader = YouTubeUploader()
-    
-    # Example 1: Simple upload
-    result = uploader.upload_video(
-        video_path='test_video.mp4',
-        title='This AI Tool Changed Everything',
-        description='Learn about this amazing AI tool. Link in description!',
-        tags=['AI', 'Technology', 'Tutorial'],
-        privacy='public'
-    )
-    
-    print(f"✅ Uploaded: {result['url']}")
-    
-    # Example 2: Shorts-optimized upload
-    result = uploader.upload_shorts_optimized(
-        video_path='generated_videos/short_123.mp4',
-        hook='This AI Tool Blew My Mind',
-        topic='AI automation',
-        hashtags=['#AI', '#Shorts', '#Technology', '#Tutorial'],
-        affiliate_link='https://customgpt.ai/aff/YOUR_ID'
-    )
-    
-    print(f"✅ Short uploaded: {result['url']}")
-    
-    # Example 3: Check upload history
-    history = uploader.get_upload_history()
-    print(f"\n📊 Upload History: {len(history)} videos")
-    for upload in history[-5:]:
-        print(f"   • {upload['title']}")
-        print(f"     {upload['url']}")
-
-
 if __name__ == "__main__":
-    main()
+    uploader = YouTubeUploader()
+    print("✅ YouTube uploader ready!")
