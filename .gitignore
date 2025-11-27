@@ -15,7 +15,7 @@ env/
 
 # OAuth credentials
 client_secret.json
-token.pickle
+# token.pickle  # ← COMMENTED OUT - We need this on Render!
 
 # Logs
 *.log
