@@ -43,20 +43,23 @@ class YouTubeTranscriptFixer:
             
             # Try the modern API first (handles auto-generated captions)
             try:
-                transcripts = YouTubeTranscriptApi.list_transcripts(video_id)
-                
-                # Try English first
-                try:
-                    transcript = transcripts.find_transcript(['en'])
-                except:
-                    # Fallback to any available transcript
-                    transcript = transcripts.find_transcript(transcripts._manually_created_transcripts[0].language if transcripts._manually_created_transcripts else 'en')
-                
-                captions = transcript.fetch()
-                full_text = " ".join([item['text'] for item in captions])
-                
-                logger.info(f"✅ Transcript retrieved: {len(full_text)} chars")
-                return full_text
+                if hasattr(YouTubeTranscriptApi, 'list_transcripts'):
+                    transcripts = YouTubeTranscriptApi.list_transcripts(video_id)
+                    
+                    # Try English first
+                    try:
+                        transcript = transcripts.find_transcript(['en'])
+                    except:
+                        # Fallback to any available transcript
+                        transcript = transcripts.find_transcript(transcripts._manually_created_transcripts[0].language if transcripts._manually_created_transcripts else 'en')
+                    
+                    captions = transcript.fetch()
+                    full_text = " ".join([item['text'] for item in captions])
+                    
+                    logger.info(f"✅ Transcript retrieved: {len(full_text)} chars")
+                    return full_text
+                else:
+                    raise AttributeError("Old API version")
                 
             except Exception as e:
                 logger.warning(f"⚠️ Modern API failed ({e}), trying legacy...")
@@ -67,8 +70,8 @@ class YouTubeTranscriptFixer:
                     full_text = " ".join([item['text'] for item in captions])
                     logger.info(f"✅ Transcript retrieved (legacy): {len(full_text)} chars")
                     return full_text
-                except:
-                    logger.error("❌ Both transcript methods failed")
+                except Exception as legacy_error:
+                    logger.error(f"❌ Legacy transcript failed: {legacy_error}")
                     return None
         
         except Exception as e:
@@ -297,11 +300,11 @@ class MasterOrchestrator:
                 youtube = build('youtube', 'v3', developerKey=os.getenv('YOUTUBE_API_KEY'))
                 
                 request = youtube.search().list(
-                    q='AI tools tutorial -crypto',
+                    q='Best AI tools 2025',
                     part='snippet',
                     type='video',
                     maxResults=5,
-                    order='viewCount'
+                    order='date'  # Get newest videos
                 )
                 
                 response = request.execute()

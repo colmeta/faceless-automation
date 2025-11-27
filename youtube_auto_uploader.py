@@ -67,6 +67,8 @@ class YouTubeUploader:
         if token_env:
             logger.info("📋 Loading token from environment variable")
             try:
+                # Clean up the string (remove newlines, spaces)
+                token_env = token_env.strip().replace('\n', '').replace('\r', '').replace(' ', '')
                 token_bytes = base64.b64decode(token_env)
                 return pickle.loads(token_bytes)
             except Exception as e:
@@ -97,37 +99,11 @@ class YouTubeUploader:
                     credentials = None
             
             if not credentials:
-                # Need to do OAuth flow (only works locally)
-                logger.info("🔐 Starting OAuth flow...")
-                logger.info("👉 Your browser will open for authorization")
-                
-                client_config = self._get_client_config()
-                
-                flow = InstalledAppFlow.from_client_config(
-                    client_config,
-                    self.SCOPES
-                )
-                credentials = flow.run_local_server(
-                    port=8080,
-                    prompt='consent',
-                    success_message='✅ Authorization successful! You can close this window.'
-                )
-                
-                # Save credentials to file
-                with open(self.TOKEN_FILE, 'wb') as token:
-                    pickle.dump(credentials, token)
-                logger.info("✅ Credentials saved to file")
-                
-                # Print base64 for environment variable
-                with open(self.TOKEN_FILE, 'rb') as token:
-                    token_bytes = token.read()
-                    token_b64 = base64.b64encode(token_bytes).decode()
-                    logger.info("\n" + "="*60)
-                    logger.info("📋 SAVE THIS TO RENDER ENVIRONMENT VARIABLE:")
-                    logger.info("Variable name: YOUTUBE_TOKEN_PICKLE_BASE64")
-                    logger.info("="*60)
-                    print(token_b64)
-                    logger.info("="*60 + "\n")
+                # On Render, we CANNOT open a browser. Fail if no valid token.
+                logger.error("❌ No valid credentials found and cannot open browser on server!")
+                logger.error("Please check YOUTUBE_TOKEN_PICKLE_BASE64 environment variable.")
+                raise ValueError("Authentication failed: No valid token and cannot perform OAuth on server")
+
         
         # Build YouTube service
         self.youtube = build('youtube', 'v3', credentials=credentials)
