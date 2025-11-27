@@ -142,11 +142,11 @@ IMPORTANT: Return ONLY the JSON object, nothing else."""
     def _create_default_analysis(self) -> dict:
         """Create default analysis when all else fails"""
         return {
-            'short_hook': 'This Free AI Tool Blew My Mind',
-            'summary': 'Discover how this AI tool can automate your workflow and save hours every week.',
-            'key_topics': 'AI, automation, productivity',
-            'cta': 'Get started free today',
-            'affiliate_angle': 'AI tools'
+            'short_hook': 'This Ferrari Strategy Changed Everything',
+            'summary': 'Imagine driving a Ferrari through the Italian Alps. The wind in your hair, the roar of the engine. This isn\'t just a dream, it\'s a lifestyle. Discover how you can achieve financial freedom and travel the whole world in style. Stop watching others live your dream. Start building your empire today with these simple steps. You deserve the best life has to offer.',
+            'key_topics': 'luxury, travel, motivation, ferrari, success',
+            'cta': 'Click the link to start your journey',
+            'affiliate_angle': 'Financial Freedom'
         }
 
 # ==================== CRITICAL FIX 3: VIDEO DURATION (THE 3-SECOND BUG) ====================
@@ -162,7 +162,7 @@ class VideoComposerFixed:
         try:
             from moviepy.editor import (
                 ColorClip, TextClip, CompositeVideoClip, 
-                AudioFileClip, concatenate_videoclips
+                AudioFileClip, concatenate_videoclips, VideoFileClip, vfx
             )
             import os
             
@@ -188,11 +188,55 @@ class VideoComposerFixed:
             
             # STEP 3: Create background that matches audio duration
             # This is the KEY FIX - video duration must match audio duration
-            background = ColorClip(
-                size=(1080, 1920),
-                color=(20, 20, 60),
-                duration=actual_duration  # Use actual audio duration!
-            )
+            bg_path = "assets/background.mp4"
+            bg_path_img = "assets/background.jpg"
+            
+            if os.path.exists(bg_path):
+                logger.info(f"found background video at {bg_path}")
+                
+                video_clip = VideoFileClip(bg_path)
+                # Loop video if it's shorter than audio
+                if video_clip.duration < actual_duration:
+                    video_clip = video_clip.loop(duration=actual_duration)
+                else:
+                    video_clip = video_clip.subclip(0, actual_duration)
+                
+                # Resize to cover 1080x1920 (vertical)
+                background = video_clip.resize(height=1920)
+                if background.w < 1080:
+                     background = background.resize(width=1080)
+                background = background.crop(x1=background.w/2 - 540, width=1080, height=1920)
+                
+            elif os.path.exists(bg_path_img):
+                logger.info(f"Found background image at {bg_path_img}")
+                from moviepy.editor import ImageClip
+                
+                # Load and resize image
+                img = ImageClip(bg_path_img)
+                
+                # Resize to height 1920 (or width 1080, whichever covers)
+                background = img.resize(height=1920)
+                if background.w < 1080:
+                    background = background.resize(width=1080)
+                
+                # Center crop to 1080x1920
+                background = background.crop(x_center=background.w/2, y_center=background.h/2, width=1080, height=1920)
+                
+                # Set duration
+                background = background.set_duration(actual_duration)
+                
+                # Apply Zoom Effect (Ken Burns)
+                # Zoom in 10% over the duration
+                background = background.resize(lambda t: 1 + 0.1 * t / actual_duration)
+                background = background.set_position(('center', 'center'))
+                
+            else:
+                logger.warning("⚠️ No background video found, using ColorClip")
+                background = ColorClip(
+                    size=(1080, 1920),
+                    color=(20, 20, 60),
+                    duration=actual_duration  # Use actual audio duration!
+                )
             
             # STEP 4: Add simple hook text
             try:
