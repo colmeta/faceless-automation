@@ -326,7 +326,7 @@ class VideoComposer:
             
             # Resize and crop to vertical format
             if bg_video.w != VideoGenConfig.WIDTH or bg_video.h != VideoGenConfig.HEIGHT:
-                bg_video = bg_video.resize(height=VideoGenConfig.HEIGHT)
+                bg_video = bg_video.resized(height=VideoGenConfig.HEIGHT)
                 bg_video = bg_video.crop(
                     x_center=bg_video.w/2,
                     width=VideoGenConfig.WIDTH,

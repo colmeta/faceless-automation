@@ -263,23 +263,7 @@ class VideoComposerFixed:
             # Fallback to local assets if dynamic failed
             if background is None:
                 if os.path.exists(local_bg):
-                    logger.info(f"found background video at {local_bg}")
-                    video_clip = VideoFileClip(local_bg)
-                    if video_clip.duration < actual_duration:
-                        video_clip = video_clip.loop(duration=actual_duration)
-                    else:
-                        video_clip = video_clip.subclip(0, actual_duration)
-                    
-                    background = video_clip.resize(height=1920)
-                    if background.w < 1080:
-                         background = background.resize(width=1080)
-                    background = background.crop(x1=background.w/2 - 540, width=1080, height=1920)
-
-                elif os.path.exists(local_img):
-                    logger.info(f"Found background image at {local_img}")
-                    from moviepy import ImageClip
-                    img = ImageClip(local_img)
-                    background = img.resize(height=1920)
+                    background = img.resized(height=1920)
                     if background.w < 1080:
                         background = background.resize(width=1080)
                     background = background.crop(x_center=background.w/2, y_center=background.h/2, width=1080, height=1920)
