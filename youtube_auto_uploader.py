@@ -58,28 +58,6 @@ class YouTubeUploader:
         
         raise FileNotFoundError(
             f"❌ No client secret found!\n"
-            f"Set YOUTUBE_CLIENT_SECRET_JSON environment variable or provide {self.CLIENT_SECRET_FILE}"
-        )
-    
-    def _get_token_from_env(self):
-        """Try to get token from environment variable"""
-        token_env = os.getenv('YOUTUBE_TOKEN_PICKLE_BASE64')
-        if token_env:
-            logger.info("📋 Loading token from environment variable")
-            try:
-                # Clean up the string (remove newlines, spaces)
-                token_env = token_env.strip().replace('\n', '').replace('\r', '').replace(' ', '')
-                token_bytes = base64.b64decode(token_env)
-                return pickle.loads(token_bytes)
-            except Exception as e:
-                logger.error(f"Failed to load token from env: {e}")
-        return None
-    
-    def authenticate(self):
-        """Handle OAuth authentication"""
-        credentials = None
-        
-        # Try environment variable first (for Render)
         credentials = self._get_token_from_env()
         
         # Try file if env variable not available
@@ -108,6 +86,25 @@ class YouTubeUploader:
         # Build YouTube service
         self.youtube = build('youtube', 'v3', credentials=credentials)
         logger.info("✅ YouTube service authenticated")
+
+    def _get_token_from_env(self):
+        """Get token from environment variable with padding fix"""
+        token_b64 = os.getenv('YOUTUBE_TOKEN_PICKLE_BASE64')
+        if not token_b64:
+            return None
+            
+        try:
+            # Fix base64 padding
+            token_b64 = token_b64.strip()
+            missing_padding = len(token_b64) % 4
+            if missing_padding:
+                token_b64 += '=' * (4 - missing_padding)
+            
+            token_bytes = base64.b64decode(token_b64)
+            return pickle.loads(token_bytes)
+        except Exception as e:
+            logger.error(f"❌ Failed to decode token from env: {e}")
+            return None
     
     def upload_video(
         self,

@@ -15,6 +15,7 @@ import json
 import logging
 import asyncio
 import requests
+import urllib.parse
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List
@@ -165,7 +166,8 @@ class BRollFetcher:
         # Try Pexels first
         if self.pexels_key:
             try:
-                url = f"https://api.pexels.com/videos/search?query={query}&per_page={count}&orientation=portrait"
+                query_encoded = urllib.parse.quote(query)
+                url = f"https://api.pexels.com/videos/search?query={query_encoded}&per_page={count}&orientation=portrait"
                 headers = {"Authorization": self.pexels_key}
                 
                 response = requests.get(url, headers=headers, timeout=10)
@@ -199,7 +201,8 @@ class BRollFetcher:
         if len(clips_paths) < count and self.pixabay_key:
             try:
                 needed = count - len(clips_paths)
-                url = f"https://pixabay.com/api/videos/?key={self.pixabay_key}&q={query}&per_page={needed + 3}"
+                query_encoded = urllib.parse.quote(query)
+                url = f"https://pixabay.com/api/videos/?key={self.pixabay_key}&q={query_encoded}&per_page={needed + 3}"
                 
                 response = requests.get(url, timeout=10)
                 
@@ -245,7 +248,7 @@ class VideoComposerFixed:
         try:
             from moviepy import (
                 ColorClip, TextClip, CompositeVideoClip, 
-                AudioFileClip, concatenate_videoclips, VideoFileClip, ImageClip
+                AudioFileClip, concatenate_videoclips, VideoFileClip, ImageClip, vfx
             )
             
             logger.info("🎬 Starting video creation...")
@@ -314,7 +317,7 @@ class VideoComposerFixed:
                         clip = clip.resized(height=1920)
                         if clip.w < 1080:
                              clip = clip.resized(width=1080)
-                        clip = clip.crop(x1=clip.w/2 - 540, width=1080, height=1920)
+                        clip = clip.with_effects([vfx.crop(x1=clip.w/2 - 540, width=1080, height=1920)])
                         
                         # Set duration for this segment
                         # Last clip takes remaining time
@@ -355,7 +358,7 @@ class VideoComposerFixed:
                     background = video_clip.resized(height=1920)
                     if background.w < 1080:
                          background = background.resized(width=1080)
-                    background = background.crop(x1=background.w/2 - 540, width=1080, height=1920)
+                    background = background.with_effects([vfx.crop(x1=background.w/2 - 540, width=1080, height=1920)])
 
                 elif os.path.exists(local_img):
                     logger.info(f"Found background image at {local_img}")
@@ -363,7 +366,7 @@ class VideoComposerFixed:
                     background = img.resized(height=1920)
                     if background.w < 1080:
                         background = background.resized(width=1080)
-                    background = background.crop(x_center=background.w/2, y_center=background.h/2, width=1080, height=1920)
+                    background = background.with_effects([vfx.crop(x_center=background.w/2, y_center=background.h/2, width=1080, height=1920)])
                     # MoviePy 2.x: set_duration -> with_duration, set_position -> with_position
                     background = background.with_duration(actual_duration)
                     background = background.with_position(('center', 'center'))
