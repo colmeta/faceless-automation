@@ -14,8 +14,8 @@ flask
 gunicorn>=21.2.0
 
 # VIDEO GENERATION (Render optimized - MoviePy 1.0.3 REQUIRED)
-moviepy==1.0.3
-pillow<10.0.0
+moviepy>=2.0.0
+pillow>=10.0.0
 numpy>=1.24.0,<2.0.0
 imageio>=2.5.0
 decorator>=4.3.0
