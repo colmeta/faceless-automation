@@ -346,8 +346,8 @@ class VideoComposer:
                 
                 # Main Hook Text
                 hook_clip = TextClip(
-                    hook_text,
-                    fontsize=75,
+                    text=hook_text,
+                    font_size=75,
                     font='Arial-Bold',
                     color='#FFD700',  # Gold/Yellow
                     stroke_color='black',
@@ -355,7 +355,7 @@ class VideoComposer:
                     method='caption',
                     size=(VideoGenConfig.WIDTH - 100, None),
                     align='center'
-                ).set_position(('center', 250)).set_duration(3.5)
+                ).with_position(('center', 250)).with_duration(3.5)
                 
                 # Apply fadein effect correctly
                 hook_clip = hook_clip.fadein(0.5)
@@ -418,7 +418,7 @@ class VideoComposer:
             )
             
             # Step 8: Add audio
-            final_video = final_video.set_audio(audio)
+            final_video = final_video.with_audio(audio)
             
             # Step 9: Export with optimal settings for low memory
             final_video.write_videofile(

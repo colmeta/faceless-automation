@@ -233,28 +233,6 @@ class VideoComposerFixed:
                         if clip.w < 1080:
                              clip = clip.resize(width=1080)
                         clip = clip.crop(x1=clip.w/2 - 540, width=1080, height=1920)
-                        
-                        # Set duration for this segment
-                        # Last clip takes remaining time
-                        if i == len(fetched_clips) - 1:
-                            dur = max(0, actual_duration - total_dur)
-                        else:
-                            dur = target_clip_dur
-                        
-                        # Loop if too short
-                        if clip.duration < dur:
-                            clip = clip.loop(duration=dur)
-                        else:
-                            clip = clip.subclip(0, dur)
-                            
-                        clip_objs.append(clip)
-                        total_dur += dur
-                    except Exception as e:
-                        logger.warning(f"⚠️ Failed to process clip {clip_path}: {e}")
-                
-                if clip_objs:
-                    background = concatenate_videoclips(clip_objs, method="compose")
-                else:
                     # Fallback if all clips failed processing
                     background = None
             else:
@@ -263,66 +241,6 @@ class VideoComposerFixed:
             # Fallback to local assets if dynamic failed
             if background is None:
                 if os.path.exists(local_bg):
-                    background = img.resized(height=1920)
-                    if background.w < 1080:
-                        background = background.resize(width=1080)
-                    background = background.crop(x_center=background.w/2, y_center=background.h/2, width=1080, height=1920)
-                    background = background.set_duration(actual_duration)
-                    background = background.resize(lambda t: 1 + 0.1 * t / actual_duration)
-                    background = background.set_position(('center', 'center'))
-                else:
-                    logger.warning("⚠️ No background found, using ColorClip")
-                    background = ColorClip(
-                        size=(1080, 1920),
-                        color=(20, 20, 60),
-                        duration=actual_duration
-                    )
-            
-            # STEP 4: Add simple hook text
-            try:
-                hook_text = TextClip(
-                    script['hook'][:40].upper(),
-                    fontsize=60,
-                    color='yellow',
-                    stroke_color='black',
-                    stroke_width=2,
-                    method='caption',
-                    size=(1000, None)
-                ).set_position('center').set_duration(min(3, actual_duration))
-            except Exception as e:
-                logger.warning(f"⚠️ Hook text failed: {e}")
-                hook_text = None
-            
-            # STEP 5: Add CTA text at the end
-            try:
-                cta_text = TextClip(
-                    script['cta'][:30].upper(),
-                    fontsize=50,
-                    color='white',
-                    bg_color='red',
-                    method='caption',
-                    size=(1000, None)
-                ).set_position(('center', 'bottom')).set_start(
-                    max(0, actual_duration - 2)
-                ).set_duration(min(2, actual_duration))
-            except Exception as e:
-                logger.warning(f"⚠️ CTA text failed: {e}")
-                cta_text = None
-            
-            # STEP 6: Composite
-            clips = [background]
-            if hook_text:
-                clips.append(hook_text)
-            if cta_text:
-                clips.append(cta_text)
-            
-            final_video = CompositeVideoClip(clips, size=(1080, 1920))
-            final_video = final_video.set_audio(audio)
-            
-            # STEP 7: Export with correct settings
-            logger.info(f"💾 Writing video to {output_path}...")
-            final_video.write_videofile(
-                output_path,
                 fps=30,
                 codec='libx264',
                 audio_codec='aac',
