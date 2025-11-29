@@ -58,6 +58,10 @@ class YouTubeUploader:
         
         raise FileNotFoundError(
             f"❌ No client secret found!\n"
+        )
+        
+    def authenticate(self):
+        """Authenticate with YouTube"""
         credentials = self._get_token_from_env()
         
         # Try file if env variable not available

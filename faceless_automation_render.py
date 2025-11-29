@@ -34,7 +34,7 @@ import requests
                 ).with_position(('center', 250)).with_duration(3.5)
                 
                 # Apply fadein effect correctly
-                hook_clip = hook_clip.with_effects([vfx.fadein(0.5)])
+                hook_clip = hook_clip.with_effects([vfx.FadeIn(0.5)])
                 
             except Exception as e:
                 logger.warning(f"⚠️ Hook text skipped: {e}")

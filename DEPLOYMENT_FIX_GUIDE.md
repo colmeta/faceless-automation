@@ -6,8 +6,8 @@ This guide details the critical fixes applied to the automation system to resolv
 
 ### 1. MoviePy 2.x Compatibility (CRITICAL)
 The `moviepy` library version 2.0 introduced breaking changes. We have updated `master_automation.py`, `faceless_automation_render.py`, and created `video_composer_professional.py` to use the new API:
-- **Crop**: Changed from `.crop(...)` to `.with_effects([vfx.crop(...)])`.
-- **Effects**: Changed `.fadein(...)` to `.with_effects([vfx.fadein(...)])`.
+- **Crop**: Changed from `.crop(...)` to `.with_effects([vfx.Crop(...)])`.
+- **Effects**: Changed `.fadein(...)` to `.with_effects([vfx.FadeIn(...)])`.
 - **Setters**: Changed `.set_duration`, `.set_position`, `.set_start`, `.set_audio` to `.with_duration`, `.with_position`, `.with_start`, `.with_audio`.
 - **Resize**: Verified usage of `.resized(...)`.
 

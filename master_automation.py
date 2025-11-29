@@ -317,7 +317,7 @@ class VideoComposerFixed:
                         clip = clip.resized(height=1920)
                         if clip.w < 1080:
                              clip = clip.resized(width=1080)
-                        clip = clip.with_effects([vfx.crop(x1=clip.w/2 - 540, width=1080, height=1920)])
+                        clip = clip.with_effects([vfx.Crop(x1=clip.w/2 - 540, width=1080, height=1920)])
                         
                         # Set duration for this segment
                         # Last clip takes remaining time
@@ -358,7 +358,7 @@ class VideoComposerFixed:
                     background = video_clip.resized(height=1920)
                     if background.w < 1080:
                          background = background.resized(width=1080)
-                    background = background.with_effects([vfx.crop(x1=background.w/2 - 540, width=1080, height=1920)])
+                    background = background.with_effects([vfx.Crop(x1=background.w/2 - 540, width=1080, height=1920)])
 
                 elif os.path.exists(local_img):
                     logger.info(f"Found background image at {local_img}")
@@ -366,7 +366,7 @@ class VideoComposerFixed:
                     background = img.resized(height=1920)
                     if background.w < 1080:
                         background = background.resized(width=1080)
-                    background = background.with_effects([vfx.crop(x_center=background.w/2, y_center=background.h/2, width=1080, height=1920)])
+                    background = background.with_effects([vfx.Crop(x_center=background.w/2, y_center=background.h/2, width=1080, height=1920)])
                     # MoviePy 2.x: set_duration -> with_duration, set_position -> with_position
                     background = background.with_duration(actual_duration)
                     background = background.with_position(('center', 'center'))

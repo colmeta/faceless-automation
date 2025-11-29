@@ -187,7 +187,7 @@ class VideoComposerProfessional:
                              clip = clip.resized(width=1080)
                         
                         # Center crop
-                        clip = clip.with_effects([vfx.crop(x1=clip.w/2 - 540, width=1080, height=1920)])
+                        clip = clip.with_effects([vfx.Crop(x1=clip.w/2 - 540, width=1080, height=1920)])
                         
                         # Set duration for this segment
                         # Last clip takes remaining time
@@ -198,7 +198,7 @@ class VideoComposerProfessional:
                         
                         # Loop if too short
                         if clip.duration < dur:
-                            clip = clip.with_effects([vfx.loop(duration=dur)])
+                            clip = clip.with_effects([vfx.Loop(duration=dur)])
                         else:
                             clip = clip.subclip(0, dur)
                             
@@ -216,14 +216,14 @@ class VideoComposerProfessional:
                     logger.info(f"found background video at {local_bg}")
                     video_clip = VideoFileClip(local_bg)
                     if video_clip.duration < actual_duration:
-                        video_clip = video_clip.with_effects([vfx.loop(duration=actual_duration)])
+                        video_clip = video_clip.with_effects([vfx.Loop(duration=actual_duration)])
                     else:
                         video_clip = video_clip.subclip(0, actual_duration)
                     
                     background = video_clip.resized(height=1920)
                     if background.w < 1080:
                          background = background.resized(width=1080)
-                    background = background.with_effects([vfx.crop(x1=background.w/2 - 540, width=1080, height=1920)])
+                    background = background.with_effects([vfx.Crop(x1=background.w/2 - 540, width=1080, height=1920)])
 
                 elif os.path.exists(local_img):
                     logger.info(f"Found background image at {local_img}")
@@ -231,7 +231,7 @@ class VideoComposerProfessional:
                     background = img.resized(height=1920)
                     if background.w < 1080:
                         background = background.resized(width=1080)
-                    background = background.with_effects([vfx.crop(x_center=background.w/2, y_center=background.h/2, width=1080, height=1920)])
+                    background = background.with_effects([vfx.Crop(x_center=background.w/2, y_center=background.h/2, width=1080, height=1920)])
                     
                     background = background.with_duration(actual_duration)
                     background = background.with_position(('center', 'center'))
@@ -257,7 +257,7 @@ class VideoComposerProfessional:
                 ).with_position('center').with_duration(min(3, actual_duration))
                 
                 # Add fade in effect
-                hook_text = hook_text.with_effects([vfx.fadein(0.5)])
+                hook_text = hook_text.with_effects([vfx.FadeIn(0.5)])
             except Exception as e:
                 logger.warning(f"⚠️ Hook text failed: {e}")
                 hook_text = None
@@ -276,7 +276,7 @@ class VideoComposerProfessional:
                 ).with_duration(min(2, actual_duration))
                 
                 # Add slide in effect (simulated with fadein for now as slide_in is complex)
-                cta_text = cta_text.with_effects([vfx.fadein(0.5)])
+                cta_text = cta_text.with_effects([vfx.FadeIn(0.5)])
             except Exception as e:
                 logger.warning(f"⚠️ CTA text failed: {e}")
                 cta_text = None
