@@ -162,7 +162,7 @@ class VideoComposerFixed:
         try:
             from moviepy import (
                 ColorClip, TextClip, CompositeVideoClip, 
-                AudioFileClip, concatenate_videoclips, VideoFileClip, vfx
+                AudioFileClip, concatenate_videoclips, VideoFileClip
             )
             import os
             

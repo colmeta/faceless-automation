@@ -20,7 +20,7 @@ from moviepy import (
     VideoFileClip, AudioFileClip, TextClip, CompositeVideoClip,
     concatenate_videoclips, ImageClip, ColorClip
 )
-from moviepy.video.fx.all import resize, fadein, fadeout
+# MoviePy 2.x: fx methods are now directly on clip objects
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 # from gtts import gTTS
@@ -326,7 +326,7 @@ class VideoComposer:
             
             # Resize and crop to vertical format
             if bg_video.w != VideoGenConfig.WIDTH or bg_video.h != VideoGenConfig.HEIGHT:
-                bg_video = bg_video.fx(resize, height=VideoGenConfig.HEIGHT)
+                bg_video = bg_video.resize(height=VideoGenConfig.HEIGHT)
                 bg_video = bg_video.crop(
                     x_center=bg_video.w/2,
                     width=VideoGenConfig.WIDTH,
@@ -358,7 +358,7 @@ class VideoComposer:
                 ).set_position(('center', 250)).set_duration(3.5)
                 
                 # Apply fadein effect correctly
-                hook_clip = hook_clip.fx(fadein, 0.5)
+                hook_clip = hook_clip.fadein(0.5)
                 
             except Exception as e:
                 logger.warning(f"⚠️ Hook text skipped: {e}")
