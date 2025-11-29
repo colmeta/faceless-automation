@@ -1,0 +1,3 @@
+# Deployment trigger - MoviePy 2.x compatibility fix
+# Last updated: 2025-11-29 05:27 UTC
+# Changes: Updated all moviepy.editor imports to moviepy for v2.x compatibility

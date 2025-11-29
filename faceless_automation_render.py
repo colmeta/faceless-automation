@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 import logging
 from datetime import datetime
-from moviepy.editor import (
+from moviepy import (
     VideoFileClip, AudioFileClip, TextClip, CompositeVideoClip,
     concatenate_videoclips, ImageClip, ColorClip
 )

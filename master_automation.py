@@ -160,7 +160,7 @@ class VideoComposerFixed:
     def generate_voice_and_video(self, script: dict, output_path: str) -> str:
         """Generate voice and create video with correct duration"""
         try:
-            from moviepy.editor import (
+            from moviepy import (
                 ColorClip, TextClip, CompositeVideoClip, 
                 AudioFileClip, concatenate_videoclips, VideoFileClip, vfx
             )
@@ -277,7 +277,7 @@ class VideoComposerFixed:
 
                 elif os.path.exists(local_img):
                     logger.info(f"Found background image at {local_img}")
-                    from moviepy.editor import ImageClip
+                    from moviepy import ImageClip
                     img = ImageClip(local_img)
                     background = img.resize(height=1920)
                     if background.w < 1080:
