@@ -115,8 +115,8 @@ class SimpleSubtitleGenerator:
                 # so we use a fixed width box or full width strip
                 
                 text_clip = TextClip(
-                    sentence.strip().upper(),
-                    fontsize=55,
+                    text=sentence.strip().upper(),
+                    font_size=55,
                     font='Arial-Bold',  # Use a bolder font
                     color='white',
                     stroke_color='black',
@@ -132,11 +132,11 @@ class SimpleSubtitleGenerator:
                 
                 # Composite text over background
                 txt_composite = CompositeVideoClip([
-                    text_clip.set_position('center')
+                    text_clip.with_position('center')
                 ], size=(video_size[0], txt_h + 40))
                 
                 # Position the whole thing
-                final_clip = txt_composite.set_position(('center', 'center')).set_start(start_time).set_duration(end_time - start_time)
+                final_clip = txt_composite.with_position(('center', 'center')).with_start(start_time).with_duration(end_time - start_time)
                 
                 clips.append(final_clip)
             except Exception as e:
@@ -372,27 +372,27 @@ class VideoComposer:
                 cta_text = script['cta'].upper()
                 
                 cta_clip = TextClip(
-                    cta_text,
-                    fontsize=60,
+                    text=cta_text,
+                    font_size=60,
                     font='Arial-Bold',
                     color='white',
                     bg_color='#CC0000',  # Dark Red background
                     method='caption',
                     size=(VideoGenConfig.WIDTH - 200, None),
                     align='center'
-                ).set_position(('center', 1400)).set_start(max(0, duration - 4)).set_duration(4)
+                ).with_position(('center', 1400)).with_start(max(0, duration - 4)).with_duration(4)
                 
                 # Add a "Subscribe" hint
                 sub_clip = TextClip(
-                    "SUBSCRIBE FOR MORE",
-                    fontsize=40,
+                    text="SUBSCRIBE FOR MORE",
+                    font_size=40,
                     font='Arial-Bold',
                     color='white',
                     stroke_color='black',
                     stroke_width=2,
                     method='caption',
                     align='center'
-                ).set_position(('center', 1550)).set_start(max(0, duration - 4)).set_duration(4)
+                ).with_position(('center', 1550)).with_start(max(0, duration - 4)).with_duration(4)
                 
             except Exception as e:
                 logger.warning(f"⚠️ CTA text skipped: {e}")

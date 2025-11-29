@@ -6,20 +6,20 @@ Fixes:
 2. Video duration issues (3-second problem)
 3. Missing analysis fields
 4. Memory-optimized for free tier
+5. MoviePy 2.x compatibility
 """
 
 import os
 import sys
 import json
-import time
 import logging
-from datetime import datetime, timedelta
-from datetime import datetime, timedelta
+import asyncio
+import requests
 from pathlib import Path
-from youtube_auto_uploader import YouTubeUploader
-from faceless_automation_render import BRollFetcher
+from datetime import datetime
+from typing import Optional, List
 
-# Setup logging
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -150,6 +150,89 @@ IMPORTANT: Return ONLY the JSON object, nothing else."""
             'affiliate_angle': 'Financial Freedom'
         }
 
+# ==================== B-ROLL FETCHER ====================
+class BRollFetcher:
+    """Fetch stock footage"""
+    
+    def __init__(self):
+        self.pexels_key = os.getenv('PEXELS_API_KEY')
+        self.pixabay_key = os.getenv('PIXABAY_API_KEY')
+    
+    def fetch_broll_sequence(self, query: str, count: int, output_dir: str) -> List[str]:
+        """Fetch a sequence of unique B-roll videos"""
+        clips_paths = []
+        
+        # Try Pexels first
+        if self.pexels_key:
+            try:
+                url = f"https://api.pexels.com/videos/search?query={query}&per_page={count}&orientation=portrait"
+                headers = {"Authorization": self.pexels_key}
+                
+                response = requests.get(url, headers=headers, timeout=10)
+                data = response.json()
+                
+                if data.get('videos'):
+                    for i, video in enumerate(data['videos']):
+                        if i >= count: break
+                        
+                        # Get HD video file
+                        video_files = video['video_files']
+                        hd_file = next((f for f in video_files if f.get('quality') == 'hd'), video_files[0])
+                        video_url = hd_file['link']
+                        
+                        # Download
+                        output_path = os.path.join(output_dir, f"broll_pexels_{i}.mp4")
+                        video_data = requests.get(video_url, timeout=30)
+                        
+                        with open(output_path, 'wb') as f:
+                            f.write(video_data.content)
+                        
+                        clips_paths.append(output_path)
+                        logger.info(f"✅ Pexels clip downloaded: {output_path}")
+                        
+                    if len(clips_paths) >= count:
+                        return clips_paths
+            except Exception as e:
+                logger.warning(f"⚠️ Pexels fetch failed: {e}")
+
+        # Try Pixabay if needed
+        if len(clips_paths) < count and self.pixabay_key:
+            try:
+                needed = count - len(clips_paths)
+                url = f"https://pixabay.com/api/videos/?key={self.pixabay_key}&q={query}&per_page={needed + 3}"
+                
+                response = requests.get(url, timeout=10)
+                
+                if response.status_code == 200:
+                    try:
+                        data = response.json()
+                        hits = data.get('hits', [])
+                        
+                        for i, hit in enumerate(hits):
+                            if len(clips_paths) >= count: break
+                            
+                            videos = hit.get('videos', {})
+                            video_url = videos.get('medium', {}).get('url')
+                            
+                            if video_url:
+                                output_path = os.path.join(output_dir, f"broll_pixabay_{i}.mp4")
+                                video_data = requests.get(video_url, timeout=30)
+                                
+                                with open(output_path, 'wb') as f:
+                                    f.write(video_data.content)
+                                
+                                clips_paths.append(output_path)
+                                logger.info(f"✅ Pixabay clip downloaded: {output_path}")
+                    except ValueError:
+                        logger.error(f"❌ Pixabay returned invalid JSON: {response.text[:100]}")
+                else:
+                    logger.error(f"❌ Pixabay API error: {response.status_code}")
+                    
+            except Exception as e:
+                logger.warning(f"⚠️ Pixabay fetch failed: {e}")
+        
+        return clips_paths
+
 # ==================== CRITICAL FIX 3: VIDEO DURATION (THE 3-SECOND BUG) ====================
 class VideoComposerFixed:
     """Fixed video composer for proper duration"""
@@ -162,9 +245,8 @@ class VideoComposerFixed:
         try:
             from moviepy import (
                 ColorClip, TextClip, CompositeVideoClip, 
-                AudioFileClip, concatenate_videoclips, VideoFileClip
+                AudioFileClip, concatenate_videoclips, VideoFileClip, ImageClip
             )
-            import os
             
             logger.info("🎬 Starting video creation...")
             
@@ -179,7 +261,6 @@ class VideoComposerFixed:
             logger.info(f"🔊 Generating voice with Edge-TTS: '{narration[:50]}...'")
             
             try:
-                import asyncio
                 import edge_tts
                 
                 async def generate_voice():
@@ -229,10 +310,33 @@ class VideoComposerFixed:
                         clip = VideoFileClip(clip_path)
                         
                         # Resize to cover 1080x1920
-                        clip = clip.resize(height=1920)
+                        # MoviePy 2.x: resize -> resized
+                        clip = clip.resized(height=1920)
                         if clip.w < 1080:
-                             clip = clip.resize(width=1080)
+                             clip = clip.resized(width=1080)
                         clip = clip.crop(x1=clip.w/2 - 540, width=1080, height=1920)
+                        
+                        # Set duration for this segment
+                        # Last clip takes remaining time
+                        if i == len(fetched_clips) - 1:
+                            dur = max(0, actual_duration - total_dur)
+                        else:
+                            dur = target_clip_dur
+                        
+                        # Loop if too short
+                        if clip.duration < dur:
+                            clip = clip.loop(duration=dur)
+                        else:
+                            clip = clip.subclip(0, dur)
+                            
+                        clip_objs.append(clip)
+                        total_dur += dur
+                    except Exception as e:
+                        logger.warning(f"⚠️ Failed to process clip {clip_path}: {e}")
+                
+                if clip_objs:
+                    background = concatenate_videoclips(clip_objs, method="compose")
+                else:
                     # Fallback if all clips failed processing
                     background = None
             else:
@@ -241,6 +345,83 @@ class VideoComposerFixed:
             # Fallback to local assets if dynamic failed
             if background is None:
                 if os.path.exists(local_bg):
+                    logger.info(f"found background video at {local_bg}")
+                    video_clip = VideoFileClip(local_bg)
+                    if video_clip.duration < actual_duration:
+                        video_clip = video_clip.loop(duration=actual_duration)
+                    else:
+                        video_clip = video_clip.subclip(0, actual_duration)
+                    
+                    background = video_clip.resized(height=1920)
+                    if background.w < 1080:
+                         background = background.resized(width=1080)
+                    background = background.crop(x1=background.w/2 - 540, width=1080, height=1920)
+
+                elif os.path.exists(local_img):
+                    logger.info(f"Found background image at {local_img}")
+                    img = ImageClip(local_img)
+                    background = img.resized(height=1920)
+                    if background.w < 1080:
+                        background = background.resized(width=1080)
+                    background = background.crop(x_center=background.w/2, y_center=background.h/2, width=1080, height=1920)
+                    # MoviePy 2.x: set_duration -> with_duration, set_position -> with_position
+                    background = background.with_duration(actual_duration)
+                    background = background.with_position(('center', 'center'))
+                else:
+                    logger.warning("⚠️ No background found, using ColorClip")
+                    background = ColorClip(
+                        size=(1080, 1920),
+                        color=(20, 20, 60),
+                        duration=actual_duration
+                    )
+            
+            # STEP 4: Add simple hook text
+            try:
+                # MoviePy 2.x: TextClip(text=..., font_size=...)
+                hook_text = TextClip(
+                    text=script['hook'][:40].upper(),
+                    font_size=60,
+                    color='yellow',
+                    stroke_color='black',
+                    stroke_width=2,
+                    method='caption',
+                    size=(1000, None)
+                ).with_position('center').with_duration(min(3, actual_duration))
+            except Exception as e:
+                logger.warning(f"⚠️ Hook text failed: {e}")
+                hook_text = None
+            
+            # STEP 5: Add CTA text at the end
+            try:
+                cta_text = TextClip(
+                    text=script['cta'][:30].upper(),
+                    font_size=50,
+                    color='white',
+                    bg_color='red',
+                    method='caption',
+                    size=(1000, None)
+                ).with_position(('center', 'bottom')).with_start(
+                    max(0, actual_duration - 2)
+                ).with_duration(min(2, actual_duration))
+            except Exception as e:
+                logger.warning(f"⚠️ CTA text failed: {e}")
+                cta_text = None
+            
+            # STEP 6: Composite
+            clips = [background]
+            if hook_text:
+                clips.append(hook_text)
+            if cta_text:
+                clips.append(cta_text)
+            
+            final_video = CompositeVideoClip(clips, size=(1080, 1920))
+            # MoviePy 2.x: set_audio -> with_audio
+            final_video = final_video.with_audio(audio)
+            
+            # STEP 7: Export with correct settings
+            logger.info(f"💾 Writing video to {output_path}...")
+            final_video.write_videofile(
+                output_path,
                 fps=30,
                 codec='libx264',
                 audio_codec='aac',
@@ -279,6 +460,7 @@ class MasterOrchestrator:
         
         # Initialize YouTube Uploader
         try:
+            from youtube_auto_uploader import YouTubeUploader
             self.youtube_uploader = YouTubeUploader()
             logger.info("✅ YouTube Uploader initialized")
         except Exception as e:
@@ -439,17 +621,9 @@ def main():
     """Simple one-shot automation"""
     try:
         orchestrator = MasterOrchestrator()
-        result = orchestrator.run_daily_automation()
-        
-        print("\n" + "="*80)
-        print("✅ SUCCESS!")
-        print(f"Video: {result['video_path']}")
-        if result['cloudinary_url']:
-            print(f"URL: {result['cloudinary_url']}")
-        print("="*80)
-        
+        orchestrator.run_daily_automation()
     except Exception as e:
-        print(f"\n❌ Error: {e}")
+        logger.error(f"❌ Fatal error: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
