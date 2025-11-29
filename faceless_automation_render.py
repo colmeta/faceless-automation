@@ -23,7 +23,7 @@ from moviepy.editor import (
 from moviepy.video.fx.all import resize, fadein, fadeout
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
-from gtts import gTTS
+# from gtts import gTTS
 import cloudinary
 import cloudinary.uploader
 
@@ -61,15 +61,30 @@ class AIVoiceGenerator:
     """Generate AI voiceovers using gTTS (lightweight)"""
     
     def generate_voice(self, text: str, output_path: str) -> str:
-        """Generate voice using Google TTS (free, no API key needed)"""
+        """Generate voice using Edge-TTS (high quality, free)"""
         try:
-            tts = gTTS(text=text, lang='en', slow=False)
-            tts.save(output_path)
+            import asyncio
+            import edge_tts
+            
+            async def _gen():
+                communicate = edge_tts.Communicate(text, "en-US-ChristopherNeural")
+                await communicate.save(output_path)
+                
+            asyncio.run(_gen())
+            
             logger.info(f"✅ Voice generated: {output_path}")
             return output_path
         except Exception as e:
-            logger.error(f"❌ Voice generation failed: {e}")
-            raise
+            logger.warning(f"⚠️ Edge-TTS failed ({e}), falling back to gTTS...")
+            try:
+                from gtts import gTTS
+                tts = gTTS(text=text, lang='en', slow=False)
+                tts.save(output_path)
+                logger.info(f"✅ Voice generated (gTTS fallback): {output_path}")
+                return output_path
+            except Exception as gtts_error:
+                logger.error(f"❌ Voice generation failed completely: {gtts_error}")
+                raise
 
 # ==================== SIMPLE SUBTITLE GENERATOR ====================
 class SimpleSubtitleGenerator:
@@ -202,6 +217,70 @@ class BRollFetcher:
             logger.error(f"❌ Pixabay fetch failed: {e}")
         
         return None
+
+    def fetch_broll_sequence(self, query: str, count: int, output_dir: str) -> List[str]:
+        """Fetch a sequence of unique B-roll videos"""
+        clips_paths = []
+        
+        # Try Pexels first
+        if self.pexels_key:
+            try:
+                url = f"https://api.pexels.com/videos/search?query={query}&per_page={count}&orientation=portrait"
+                headers = {"Authorization": self.pexels_key}
+                
+                response = requests.get(url, headers=headers, timeout=10)
+                data = response.json()
+                
+                if data.get('videos'):
+                    for i, video in enumerate(data['videos']):
+                        if i >= count: break
+                        
+                        # Get HD video file
+                        video_files = video['video_files']
+                        hd_file = next((f for f in video_files if f.get('quality') == 'hd'), video_files[0])
+                        video_url = hd_file['link']
+                        
+                        # Download
+                        output_path = os.path.join(output_dir, f"broll_{i}.mp4")
+                        video_data = requests.get(video_url, timeout=30)
+                        
+                        with open(output_path, 'wb') as f:
+                            f.write(video_data.content)
+                        
+                        clips_paths.append(output_path)
+                        logger.info(f"✅ Pexels B-roll {i+1} downloaded")
+            except Exception as e:
+                logger.error(f"❌ Pexels sequence fetch failed: {e}")
+        
+        # Fill remaining with Pixabay if needed
+        if len(clips_paths) < count and self.pixabay_key:
+            try:
+                needed = count - len(clips_paths)
+                url = f"https://pixabay.com/api/videos/?key={self.pixabay_key}&q={query}&per_page={needed + 3}"
+                
+                response = requests.get(url, timeout=10)
+                data = response.json()
+                
+                if data.get('hits'):
+                    for i, hit in enumerate(data['hits']):
+                        if len(clips_paths) >= count: break
+                        
+                        videos = hit.get('videos', {})
+                        video_url = videos.get('medium', {}).get('url')
+                        
+                        if video_url:
+                            output_path = os.path.join(output_dir, f"broll_pixabay_{i}.mp4")
+                            video_data = requests.get(video_url, timeout=30)
+                            
+                            with open(output_path, 'wb') as f:
+                                f.write(video_data.content)
+                            
+                            clips_paths.append(output_path)
+                            logger.info(f"✅ Pixabay B-roll downloaded")
+            except Exception as e:
+                logger.error(f"❌ Pixabay sequence fetch failed: {e}")
+                
+        return clips_paths
 
 # ==================== VIDEO COMPOSER ====================
 class VideoComposer:

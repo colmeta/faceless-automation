@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 from datetime import datetime, timedelta
 from pathlib import Path
 from youtube_auto_uploader import YouTubeUploader
+from faceless_automation_render import BRollFetcher
 
 # Setup logging
 logging.basicConfig(
@@ -154,8 +155,7 @@ class VideoComposerFixed:
     """Fixed video composer for proper duration"""
     
     def __init__(self):
-        from gtts import gTTS
-        self.gTTS = gTTS
+        self.broll_fetcher = BRollFetcher()
     
     def generate_voice_and_video(self, script: dict, output_path: str) -> str:
         """Generate voice and create video with correct duration"""
@@ -168,7 +168,7 @@ class VideoComposerFixed:
             
             logger.info("🎬 Starting video creation...")
             
-            # STEP 1: Generate voice
+            # STEP 1: Generate voice (using Edge-TTS for professional quality)
             narration = script.get('narration', '')
             if not narration:
                 narration = f"{script['hook']}. {script.get('cta', 'Try it now')}."
@@ -176,9 +176,24 @@ class VideoComposerFixed:
             voice_path = "temp/voice.mp3"
             os.makedirs("temp", exist_ok=True)
             
-            logger.info(f"🔊 Generating voice: '{narration[:50]}...'")
-            tts = self.gTTS(text=narration, lang='en', slow=False)
-            tts.save(voice_path)
+            logger.info(f"🔊 Generating voice with Edge-TTS: '{narration[:50]}...'")
+            
+            try:
+                import asyncio
+                import edge_tts
+                
+                async def generate_voice():
+                    communicate = edge_tts.Communicate(narration, "en-US-ChristopherNeural")
+                    await communicate.save(voice_path)
+                
+                asyncio.run(generate_voice())
+                logger.info("✅ Edge-TTS generation successful")
+            except Exception as e:
+                logger.warning(f"⚠️ Edge-TTS failed ({e}), falling back to gTTS...")
+                from gtts import gTTS
+                tts = gTTS(text=narration, lang='en', slow=False)
+                tts.save(voice_path)
+                logger.info("✅ gTTS generation successful (fallback)")
             
             # STEP 2: Get actual audio duration
             audio = AudioFileClip(voice_path)
@@ -186,57 +201,98 @@ class VideoComposerFixed:
             
             logger.info(f"⏱️ Audio duration: {actual_duration:.2f} seconds")
             
-            # STEP 3: Create background that matches audio duration
-            # This is the KEY FIX - video duration must match audio duration
-            bg_path = "assets/background.mp4"
-            bg_path_img = "assets/background.jpg"
+            # STEP 3: Create background with Multi-Clip System
+            # Try dynamic B-roll first
+            topic = script.get('topic', 'technology')
+            broll_dir = "temp/broll_seq"
+            os.makedirs(broll_dir, exist_ok=True)
             
-            if os.path.exists(bg_path):
-                logger.info(f"found background video at {bg_path}")
+            # Calculate needed clips (approx 1 clip every 4-5 seconds)
+            num_clips = max(3, int(actual_duration / 4))
+            
+            logger.info(f"🎞️ Fetching {num_clips} clips for topic: {topic}")
+            fetched_clips = self.broll_fetcher.fetch_broll_sequence(topic, num_clips, broll_dir)
+            
+            local_bg = "assets/background.mp4"
+            local_img = "assets/background.jpg"
+            
+            if fetched_clips:
+                logger.info(f"✅ Using {len(fetched_clips)} dynamic clips")
+                clip_objs = []
                 
-                video_clip = VideoFileClip(bg_path)
-                # Loop video if it's shorter than audio
-                if video_clip.duration < actual_duration:
-                    video_clip = video_clip.loop(duration=actual_duration)
+                # Create sequence
+                total_dur = 0
+                target_clip_dur = actual_duration / len(fetched_clips)
+                
+                for i, clip_path in enumerate(fetched_clips):
+                    try:
+                        clip = VideoFileClip(clip_path)
+                        
+                        # Resize to cover 1080x1920
+                        clip = clip.resize(height=1920)
+                        if clip.w < 1080:
+                             clip = clip.resize(width=1080)
+                        clip = clip.crop(x1=clip.w/2 - 540, width=1080, height=1920)
+                        
+                        # Set duration for this segment
+                        # Last clip takes remaining time
+                        if i == len(fetched_clips) - 1:
+                            dur = max(0, actual_duration - total_dur)
+                        else:
+                            dur = target_clip_dur
+                        
+                        # Loop if too short
+                        if clip.duration < dur:
+                            clip = clip.loop(duration=dur)
+                        else:
+                            clip = clip.subclip(0, dur)
+                            
+                        clip_objs.append(clip)
+                        total_dur += dur
+                    except Exception as e:
+                        logger.warning(f"⚠️ Failed to process clip {clip_path}: {e}")
+                
+                if clip_objs:
+                    background = concatenate_videoclips(clip_objs, method="compose")
                 else:
-                    video_clip = video_clip.subclip(0, actual_duration)
-                
-                # Resize to cover 1080x1920 (vertical)
-                background = video_clip.resize(height=1920)
-                if background.w < 1080:
-                     background = background.resize(width=1080)
-                background = background.crop(x1=background.w/2 - 540, width=1080, height=1920)
-                
-            elif os.path.exists(bg_path_img):
-                logger.info(f"Found background image at {bg_path_img}")
-                from moviepy.editor import ImageClip
-                
-                # Load and resize image
-                img = ImageClip(bg_path_img)
-                
-                # Resize to height 1920 (or width 1080, whichever covers)
-                background = img.resize(height=1920)
-                if background.w < 1080:
-                    background = background.resize(width=1080)
-                
-                # Center crop to 1080x1920
-                background = background.crop(x_center=background.w/2, y_center=background.h/2, width=1080, height=1920)
-                
-                # Set duration
-                background = background.set_duration(actual_duration)
-                
-                # Apply Zoom Effect (Ken Burns)
-                # Zoom in 10% over the duration
-                background = background.resize(lambda t: 1 + 0.1 * t / actual_duration)
-                background = background.set_position(('center', 'center'))
-                
+                    # Fallback if all clips failed processing
+                    background = None
             else:
-                logger.warning("⚠️ No background video found, using ColorClip")
-                background = ColorClip(
-                    size=(1080, 1920),
-                    color=(20, 20, 60),
-                    duration=actual_duration  # Use actual audio duration!
-                )
+                background = None
+
+            # Fallback to local assets if dynamic failed
+            if background is None:
+                if os.path.exists(local_bg):
+                    logger.info(f"found background video at {local_bg}")
+                    video_clip = VideoFileClip(local_bg)
+                    if video_clip.duration < actual_duration:
+                        video_clip = video_clip.loop(duration=actual_duration)
+                    else:
+                        video_clip = video_clip.subclip(0, actual_duration)
+                    
+                    background = video_clip.resize(height=1920)
+                    if background.w < 1080:
+                         background = background.resize(width=1080)
+                    background = background.crop(x1=background.w/2 - 540, width=1080, height=1920)
+
+                elif os.path.exists(local_img):
+                    logger.info(f"Found background image at {local_img}")
+                    from moviepy.editor import ImageClip
+                    img = ImageClip(local_img)
+                    background = img.resize(height=1920)
+                    if background.w < 1080:
+                        background = background.resize(width=1080)
+                    background = background.crop(x_center=background.w/2, y_center=background.h/2, width=1080, height=1920)
+                    background = background.set_duration(actual_duration)
+                    background = background.resize(lambda t: 1 + 0.1 * t / actual_duration)
+                    background = background.set_position(('center', 'center'))
+                else:
+                    logger.warning("⚠️ No background found, using ColorClip")
+                    background = ColorClip(
+                        size=(1080, 1920),
+                        color=(20, 20, 60),
+                        duration=actual_duration
+                    )
             
             # STEP 4: Add simple hook text
             try:
@@ -382,7 +438,8 @@ class MasterOrchestrator:
             script = {
                 'hook': analysis['short_hook'],
                 'narration': analysis['summary'],
-                'cta': analysis['cta']
+                'cta': analysis['cta'],
+                'topic': analysis.get('key_topics', 'technology').split(',')[0]
             }
             
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

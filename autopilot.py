@@ -10,7 +10,7 @@ import json
 import time
 import random
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional
 import schedule
 import requests
@@ -472,18 +472,6 @@ I earn a small commission (at no cost to you) which helps me make more videos. T
 class SmartScheduler:
     """Schedules posts at optimal times"""
     
-    def __init__(self):
-        self.queue = []
-    
-    def get_next_post_time(self) -> datetime:
-        """Calculate next optimal posting time"""
-        now = datetime.now()
-        
-        for day_name, time_str in Config.POSTING_SCHEDULE.items():
-            hour, minute = map(int, time_str.split(':'))
-            days = {'Monday': 0, 'Tuesday': 1, 'Wednesday': 2, 'Thursday': 3,
-                    'Friday': 4, 'Saturday': 5, 'Sunday': 6}
-            target = days.get(day_name, 1)
             current = now.weekday()
             days_ahead = (target - current) % 7
             

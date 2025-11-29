@@ -10,7 +10,7 @@ import requests
 import time
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 from dotenv import load_dotenv
 import shutil
@@ -387,31 +387,14 @@ def run_automation_once():
         
         app.config['VIDEOS_COUNT'] = app.config.get('VIDEOS_COUNT', 0) + 1
         
-        # If Cloudinary is enabled, upload videos
-        if CLOUDINARY_ENABLED and results.get('videos'):
-            for platform, video_path in results['videos'].items():
-                if os.path.exists(video_path):
-                    try:
-                        logger.info(f"☁️ Uploading {platform} video to Cloudinary...")
-                        
-                        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                        public_id = f"faceless/{platform}/{timestamp}"
-                        
-                        result = cloudinary.uploader.upload_large(
-                            video_path,
-                            resource_type="video",
-                            public_id=public_id,
-                            folder="faceless_videos"
-                        )
-                        
-                        logger.info(f"✅ {platform} uploaded: {result['secure_url']}")
-                        
-                        # Delete local file after successful upload
-                        os.remove(video_path)
-                        logger.info(f"🗑️ Deleted local file: {video_path}")
-                        
-                    except Exception as e:
-                        logger.error(f"❌ Cloudinary upload failed for {platform}: {e}")
+        # Cloudinary upload is handled within master_automation.py
+        if results.get('cloudinary_url'):
+            logger.info(f"✅ Video available at: {results['cloudinary_url']}")
+        
+        if results.get('status') == 'success':
+             logger.info("✅ Automation cycle completed successfully")
+        else:
+             logger.warning("⚠️ Automation cycle completed with warnings")
         
         logger.info("✅ Automation cycle complete")
         
@@ -451,7 +434,7 @@ def start_scheduled_automation():
     
     # NEW: Check if we should run immediately (within 30 min of scheduled time)
     from datetime import datetime
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     current_hour = now.hour
     current_minute = now.minute
     
