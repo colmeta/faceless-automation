@@ -14,9 +14,23 @@ import logging
 import asyncio
 import requests
 import urllib.parse
+import random
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List
+
+# Import content templates for variation
+try:
+    from content_templates import (
+        generate_unique_script,
+        get_timestamp_based_script,
+        get_random_color_scheme,
+        get_timestamp_color_scheme
+    )
+    TEMPLATES_AVAILABLE = True
+except ImportError:
+    logger.warning("⚠️ content_templates.py not found, using basic variation")
+    TEMPLATES_AVAILABLE = False
 
 # Configure logging
 logging.basicConfig(
@@ -136,14 +150,64 @@ IMPORTANT: Return ONLY the JSON object, nothing else."""
         return analysis
     
     def _create_default_analysis(self) -> dict:
-        """Create default analysis when all else fails"""
-        return {
-            'short_hook': 'This AI Strategy Changed Everything',
-            'summary': 'Discover the power of AI automation. Transform your workflow with cutting-edge tools. Stop wasting time on manual tasks. Let AI handle the heavy lifting while you focus on what matters. Join thousands who are already using this game-changing technology.',
-            'key_topics': 'AI, automation, productivity, technology, innovation',
-            'cta': 'Start your free trial today',
-            'affiliate_angle': 'AI Productivity Tools'
-        }
+        """Create default analysis with VARIATION to avoid duplicate videos"""
+        if TEMPLATES_AVAILABLE:
+            # Use timestamp-based selection for reproducible variety
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            script = get_timestamp_based_script(timestamp)
+            
+            return {
+                'short_hook': script['hook'],
+                'summary': script['narration'],
+                'key_topics': script['topic']['keywords'],
+                'cta': script['cta'],
+                'affiliate_angle': script['topic']['focus']
+            }
+        else:
+            # Basic variation using lists when templates not available
+            hooks = [
+                'This AI Strategy Changed Everything',
+                'Stop Wasting Time on This',
+                'The Tool Nobody Talks About',
+                'This Mistake Costs You Hours',
+                'The Hidden Productivity Hack'
+            ]
+            
+            narrations = [
+                'Discover the power of AI automation. Transform your workflow with cutting-edge tools. Stop wasting time on manual tasks.',
+                'Most people waste hours on repetitive work. But there\'s a smarter way. This AI tool handles it automatically.',
+                'What if you could save 10 hours this week? This innovation makes it possible. Join thousands already using it.',
+                'Traditional methods are outdated. This game-changing platform revolutionizes how you work. Pure efficiency.',
+                'You\'re doing productivity wrong. Everyone is. This automated solution fixes it instantly. Zero struggle.'
+            ]
+            
+            topics = [
+                'AI, automation, productivity',
+                'technology, efficiency, tools',
+                'innovation, workflow, business',
+                'software, automation, growth',
+                'productivity, time management, success'
+            ]
+            
+            ctas = [
+                'Start your free trial today',
+                'Try it free now',
+                'Get instant access',
+                'Join thousands of users',
+                'Transform your workflow'
+            ]
+            
+            # Use timestamp to select from lists
+            seed = int(datetime.now().strftime("%H%M%S"))
+            idx = seed % len(hooks)
+            
+            return {
+                'short_hook': hooks[idx],
+                'summary': narrations[idx],
+                'key_topics': topics[idx],
+                'cta': ctas[idx],
+                'affiliate_angle': 'AI Productivity Tools'
+            }
 
 # ==================== B-ROLL FETCHER (FIXED) ====================
 class BRollFetcher:
@@ -486,12 +550,33 @@ class VideoComposerFixed:
                     background = background.with_duration(actual_duration)
                     background = background.with_position(('center', 'center'))
             
-            # Try 4: ColorClip fallback (never crashes)
+            # Try 4: ColorClip with VARIED colors (not same every time)
             if background is None:
-                logger.warning("⚠️ Using ColorClip fallback")
+                logger.warning("⚠️ Using ColorClip with varied colors")
+                
+                # Get varied color based on timestamp
+                base_colors = [
+                    (20, 20, 60),   # Dark blue
+                    (60, 20, 60),   # Purple  
+                    (20, 60, 60),   # Teal
+                    (60, 30, 20),   # Brown/Orange
+                    (20, 40, 60),   # Medium blue
+                    (40, 20, 50),   # Deep purple
+                    (10, 50, 40),   # Dark green
+                    (70, 20, 30),   # Dark red
+                    (30, 30, 70),   # Bright blue
+                    (50, 40, 10),   # Gold
+                ]
+                
+                # Use timestamp to select color (different each run)
+                seed = int(datetime.now().strftime("%H%M%S"))
+                color = base_colors[seed % len(base_colors)]
+                
+                logger.info(f"🎨 Using color scheme: RGB{color}")
+                
                 background = ColorClip(
                     size=(1080, 1920),
-                    color=(20, 20, 60),
+                    color=color,
                     duration=actual_duration
                 )
             
