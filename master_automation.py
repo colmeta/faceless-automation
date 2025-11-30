@@ -42,6 +42,14 @@ class YouTubeTranscriptFixer:
             from youtube_transcript_api import YouTubeTranscriptApi
             
             from youtube_transcript_api import YouTubeTranscriptApi
+            import pkg_resources
+            try:
+                version = pkg_resources.get_distribution("youtube-transcript-api").version
+                logger.info(f"🔍 Installed youtube-transcript-api version: {version}")
+            except:
+                logger.info("🔍 Could not determine youtube-transcript-api version")
+            
+            logger.info(f"🔍 YouTubeTranscriptApi file: {sys.modules['youtube_transcript_api'].__file__}")
             logger.info(f"🔍 YouTubeTranscriptApi dir: {dir(YouTubeTranscriptApi)}")
             
             logger.info(f"🔍 Fetching transcript for {video_id}...")
@@ -159,8 +167,8 @@ class BRollFetcher:
     """Fetch stock footage"""
     
     def __init__(self):
-        self.pexels_key = os.getenv('PEXELS_API_KEY')
-        self.pixabay_key = os.getenv('PIXABAY_API_KEY')
+        self.pexels_key = os.getenv('PEXELS_API_KEY', '').strip()
+        self.pixabay_key = os.getenv('PIXABAY_API_KEY', '').strip()
     
     def fetch_broll_sequence(self, query: str, count: int, output_dir: str) -> List[str]:
         """Fetch a sequence of unique B-roll videos"""
