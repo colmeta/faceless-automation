@@ -113,12 +113,18 @@ class YouTubeUploader:
             token_b64 = token_b64.strip()
             token_b64 = token_b64.replace(' ', '').replace('\n', '').replace('\r', '')
             
+            # Add padding if needed
             missing_padding = len(token_b64) % 4
             if missing_padding:
                 token_b64 += '=' * (4 - missing_padding)
             
-            token_bytes = base64.b64decode(token_b64)
-            return pickle.loads(token_bytes)
+            try:
+                token_bytes = base64.b64decode(token_b64)
+                return pickle.loads(token_bytes)
+            except Exception as e:
+                # Try urlsafe decode as fallback
+                token_bytes = base64.urlsafe_b64decode(token_b64)
+                return pickle.loads(token_bytes)
         except Exception as e:
             logger.error(f"❌ Failed to decode token from env: {e}")
             return None

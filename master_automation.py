@@ -58,13 +58,14 @@ class YouTubeTranscriptFixer:
             
             # ✅ FIXED: Direct static method call (this is the correct way)
             try:
-                captions = YouTubeTranscriptApi.get_transcript(video_id)
+                # Try to get English transcript directly
+                captions = YouTubeTranscriptApi.get_transcript(video_id, languages=['en', 'en-US'])
                 full_text = " ".join([item['text'] for item in captions])
                 logger.info(f"✅ Transcript retrieved: {len(full_text)} chars")
                 return full_text
                 
             except Exception as e:
-                logger.warning(f"⚠️ English transcript failed, trying any language...")
+                logger.warning(f"⚠️ English transcript failed, trying list_transcripts: {e}")
                 
                 # Try to get any available transcript
                 try:
@@ -484,14 +485,14 @@ class VideoComposerFixed:
                     try:
                         clip = VideoFileClip(clip_path)
                         
-                        # ✅ FIXED: MoviePy 2.x syntax
-                        clip = clip.resized(height=1920)
-                        if clip.w < 1080:
-                            clip = clip.resized(width=1080)
+                        # ✅ FIXED: MoviePy 2.x syntax - 720p for Render Free Tier
+                        clip = clip.resized(height=1280)
+                        if clip.w < 720:
+                            clip = clip.resized(width=720)
                         
                         # ✅ FIXED: with_effects instead of fx
                         clip = clip.with_effects([
-                            vfx.Crop(x1=int(clip.w/2 - 540), width=1080, height=1920)
+                            vfx.Crop(x1=int(clip.w/2 - 360), width=720, height=1280)
                         ])
                         
                         if i == len(fetched_clips) - 1:
@@ -524,12 +525,12 @@ class VideoComposerFixed:
                     else:
                         video_clip = video_clip.subclipped(0, actual_duration)
                     
-                    background = video_clip.resized(height=1920)
-                    if background.w < 1080:
-                        background = background.resized(width=1080)
+                    background = video_clip.resized(height=1280)
+                    if background.w < 720:
+                        background = background.resized(width=720)
                     
                     background = background.with_effects([
-                        vfx.Crop(x1=int(background.w/2 - 540), width=1080, height=1920)
+                        vfx.Crop(x1=int(background.w/2 - 360), width=720, height=1280)
                     ])
             
             # Try 3: Assets folder image
@@ -539,12 +540,12 @@ class VideoComposerFixed:
                     logger.info(f"📂 Using assets/background.jpg")
                     img = ImageClip(local_img)
                     
-                    background = img.resized(height=1920)
-                    if background.w < 1080:
-                        background = background.resized(width=1080)
+                    background = img.resized(height=1280)
+                    if background.w < 720:
+                        background = background.resized(width=720)
                     
                     background = background.with_effects([
-                        vfx.Crop(x_center=background.w/2, y_center=background.h/2, width=1080, height=1920)
+                        vfx.Crop(x_center=background.w/2, y_center=background.h/2, width=720, height=1280)
                     ])
                     
                     # ✅ FIXED: with_duration, with_position
@@ -576,7 +577,7 @@ class VideoComposerFixed:
                 logger.info(f"🎨 Using color scheme: RGB{color}")
                 
                 background = ColorClip(
-                    size=(1080, 1920),
+                    size=(720, 1280),
                     color=color,
                     duration=actual_duration
                 )
@@ -621,7 +622,7 @@ class VideoComposerFixed:
             if cta_text:
                 clips.append(cta_text)
             
-            final_video = CompositeVideoClip(clips, size=(1080, 1920))
+            final_video = CompositeVideoClip(clips, size=(720, 1280))
             final_video = final_video.with_audio(audio)  # ✅ FIXED
             
             # STEP 7: Export (memory optimized)
