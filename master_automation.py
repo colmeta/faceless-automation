@@ -422,8 +422,7 @@ class VideoComposerFixed:
                 bitrate='3000k',
                 preset='ultrafast',
                 threads=2,
-                verbose=False,
-                logger=None
+                logger=None  # Removed verbose parameter (MoviePy 2.x)
             )
             
             logger.info(f"✅ Video created: {output_path} ({actual_duration:.2f}s)")
