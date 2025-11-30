@@ -41,31 +41,36 @@ class YouTubeTranscriptFixer:
             
             logger.info(f"🔍 Fetching transcript for {video_id}...")
             
-            # Try modern API first
+            # ✅ FIXED: Direct static method call (this is the correct way)
             try:
-                if hasattr(YouTubeTranscriptApi, 'list_transcripts'):
-                    transcripts = YouTubeTranscriptApi.list_transcripts(video_id)
+                captions = YouTubeTranscriptApi.get_transcript(video_id)
+                full_text = " ".join([item['text'] for item in captions])
+                logger.info(f"✅ Transcript retrieved: {len(full_text)} chars")
+                return full_text
+                
+            except Exception as e:
+                logger.warning(f"⚠️ English transcript failed, trying any language...")
+                
+                # Try to get any available transcript
+                try:
+                    transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
                     
+                    # Try to find English first
                     try:
-                        transcript = transcripts.find_transcript(['en'])
+                        transcript = transcript_list.find_transcript(['en'])
                     except:
-                        transcript = list(transcripts)[0]
+                        # Get first available transcript
+                        transcript = next(iter(transcript_list))
+                        logger.info(f"Using transcript language: {transcript.language}")
                     
                     captions = transcript.fetch()
                     full_text = " ".join([item['text'] for item in captions])
-                    
                     logger.info(f"✅ Transcript retrieved: {len(full_text)} chars")
                     return full_text
-                else:
-                    raise AttributeError("Old API version")
-                
-            except Exception as e:
-                logger.warning(f"⚠️ Modern API failed, trying legacy...")
-                
-                captions = YouTubeTranscriptApi.get_transcript(video_id)
-                full_text = " ".join([item['text'] for item in captions])
-                logger.info(f"✅ Transcript retrieved (legacy): {len(full_text)} chars")
-                return full_text
+                    
+                except Exception as e2:
+                    logger.error(f"❌ All transcript methods failed: {e2}")
+                    return None
         
         except Exception as e:
             logger.error(f"❌ Transcript error: {e}")
@@ -149,75 +154,171 @@ class BRollFetcher:
         self.pixabay_key = os.getenv('PIXABAY_API_KEY', '').strip()
     
     def fetch_broll_sequence(self, query: str, count: int, output_dir: str) -> List[str]:
-        """Fetch a sequence of unique B-roll videos"""
+        """Fetch a sequence of unique B-roll videos with robust fallbacks"""
         clips_paths = []
         
-        # Try Pexels first
+        logger.info(f"🎬 Fetching {count} B-roll clips for: '{query}'")
+        
+        # Try Pexels first (most reliable)
         if self.pexels_key:
             try:
                 query_encoded = urllib.parse.quote(query)
                 url = f"https://api.pexels.com/videos/search?query={query_encoded}&per_page={count}&orientation=portrait"
                 headers = {"Authorization": self.pexels_key}
                 
+                logger.info(f"🔍 Pexels API: {url}")
                 response = requests.get(url, headers=headers, timeout=10)
-                data = response.json()
                 
-                if data.get('videos'):
-                    for i, video in enumerate(data['videos']):
-                        if i >= count: break
+                if response.status_code == 200:
+                    data = response.json()
+                    
+                    if data.get('videos'):
+                        logger.info(f"✅ Pexels found {len(data['videos'])} videos")
                         
-                        video_files = video['video_files']
-                        hd_file = next((f for f in video_files if f.get('quality') == 'hd'), video_files[0])
-                        video_url = hd_file['link']
-                        
-                        output_path = os.path.join(output_dir, f"broll_pexels_{i}.mp4")
-                        video_data = requests.get(video_url, timeout=30)
-                        
-                        with open(output_path, 'wb') as f:
-                            f.write(video_data.content)
-                        
-                        clips_paths.append(output_path)
-                        logger.info(f"✅ Pexels clip {i+1}/{count} downloaded")
-                        
-                    if len(clips_paths) >= count:
-                        return clips_paths
+                        for i, video in enumerate(data['videos']):
+                            if i >= count: break
+                            
+                            try:
+                                video_files = video['video_files']
+                                # Prefer HD, fallback to any available
+                                hd_file = next((f for f in video_files if f.get('quality') == 'hd'), video_files[0])
+                                video_url = hd_file['link']
+                                
+                                output_path = os.path.join(output_dir, f"broll_pexels_{i}.mp4")
+                                
+                                # Download with streaming to save memory
+                                video_response = requests.get(video_url, timeout=30, stream=True)
+                                video_response.raise_for_status()
+                                
+                                with open(output_path, 'wb') as f:
+                                    for chunk in video_response.iter_content(chunk_size=8192):
+                                        f.write(chunk)
+                                
+                                # Verify file was downloaded
+                                if os.path.exists(output_path) and os.path.getsize(output_path) > 1000:
+                                    clips_paths.append(output_path)
+                                    logger.info(f"✅ Pexels clip {i+1}/{count} downloaded ({os.path.getsize(output_path)} bytes)")
+                                else:
+                                    logger.warning(f"⚠️ Downloaded file is too small or missing")
+                                    
+                            except Exception as e:
+                                logger.warning(f"⚠️ Failed to download clip {i}: {e}")
+                                continue
+                            
+                        if len(clips_paths) >= count:
+                            logger.info(f"🎉 Successfully fetched {len(clips_paths)} clips from Pexels")
+                            return clips_paths
+                    else:
+                        logger.warning(f"⚠️ Pexels returned no videos for query: {query}")
+                else:
+                    logger.error(f"❌ Pexels API error: {response.status_code} - {response.text[:200]}")
+                    
             except Exception as e:
                 logger.warning(f"⚠️ Pexels fetch failed: {e}")
 
-        # Try Pixabay if needed (FIXED URL ENCODING)
+        # Try Pixabay if needed (with improved error handling)
         if len(clips_paths) < count and self.pixabay_key:
             try:
                 needed = count - len(clips_paths)
-                query_encoded = urllib.parse.quote(query)  # ✅ FIXED
-                url = f"https://pixabay.com/api/videos/?key={self.pixabay_key}&q={query_encoded}&per_page={needed + 3}"
+                query_encoded = urllib.parse.quote(query)
+                url = f"https://pixabay.com/api/videos/?key={self.pixabay_key}&q={query_encoded}&per_page={needed + 5}"
                 
+                logger.info(f"🔍 Pixabay API: {url[:100]}...")
                 response = requests.get(url, timeout=10)
                 
                 if response.status_code == 200:
                     data = response.json()
                     hits = data.get('hits', [])
                     
-                    for i, hit in enumerate(hits):
-                        if len(clips_paths) >= count: break
+                    if hits:
+                        logger.info(f"✅ Pixabay found {len(hits)} videos")
                         
-                        videos = hit.get('videos', {})
-                        video_url = videos.get('medium', {}).get('url')
-                        
-                        if video_url:
-                            output_path = os.path.join(output_dir, f"broll_pixabay_{i}.mp4")
-                            video_data = requests.get(video_url, timeout=30)
+                        for i, hit in enumerate(hits):
+                            if len(clips_paths) >= count: break
                             
-                            with open(output_path, 'wb') as f:
-                                f.write(video_data.content)
-                            
-                            clips_paths.append(output_path)
-                            logger.info(f"✅ Pixabay clip {len(clips_paths)}/{count} downloaded")
+                            try:
+                                videos = hit.get('videos', {})
+                                # Try different quality levels
+                                video_url = (videos.get('medium', {}).get('url') or 
+                                           videos.get('small', {}).get('url') or
+                                           videos.get('tiny', {}).get('url'))
+                                
+                                if video_url:
+                                    output_path = os.path.join(output_dir, f"broll_pixabay_{i}.mp4")
+                                    
+                                    # Download with streaming
+                                    video_response = requests.get(video_url, timeout=30, stream=True)
+                                    video_response.raise_for_status()
+                                    
+                                    with open(output_path, 'wb') as f:
+                                        for chunk in video_response.iter_content(chunk_size=8192):
+                                            f.write(chunk)
+                                    
+                                    if os.path.exists(output_path) and os.path.getsize(output_path) > 1000:
+                                        clips_paths.append(output_path)
+                                        logger.info(f"✅ Pixabay clip {len(clips_paths)}/{count} downloaded")
+                                    else:
+                                        logger.warning(f"⚠️ Downloaded file is too small")
+                                        
+                            except Exception as e:
+                                logger.warning(f"⚠️ Failed to download Pixabay clip {i}: {e}")
+                                continue
+                    else:
+                        logger.warning(f"⚠️ Pixabay returned no videos for query: {query}")
                 else:
                     logger.error(f"❌ Pixabay API error: {response.status_code}")
+                    logger.error(f"Response: {response.text[:500]}")
                     
             except Exception as e:
                 logger.warning(f"⚠️ Pixabay fetch failed: {e}")
         
+        # Fallback: Try Pexels trending/popular if we still don't have enough
+        if len(clips_paths) < count and self.pexels_key:
+            logger.info(f"🔄 Trying Pexels popular videos as fallback...")
+            try:
+                needed = count - len(clips_paths)
+                url = f"https://api.pexels.com/videos/popular?per_page={needed}&orientation=portrait"
+                headers = {"Authorization": self.pexels_key}
+                
+                response = requests.get(url, headers=headers, timeout=10)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    
+                    if data.get('videos'):
+                        for i, video in enumerate(data['videos']):
+                            if len(clips_paths) >= count: break
+                            
+                            try:
+                                video_files = video['video_files']
+                                hd_file = next((f for f in video_files if f.get('quality') == 'hd'), video_files[0])
+                                video_url = hd_file['link']
+                                
+                                output_path = os.path.join(output_dir, f"broll_popular_{i}.mp4")
+                                
+                                video_response = requests.get(video_url, timeout=30, stream=True)
+                                video_response.raise_for_status()
+                                
+                                with open(output_path, 'wb') as f:
+                                    for chunk in video_response.iter_content(chunk_size=8192):
+                                        f.write(chunk)
+                                
+                                if os.path.exists(output_path) and os.path.getsize(output_path) > 1000:
+                                    clips_paths.append(output_path)
+                                    logger.info(f"✅ Popular clip {len(clips_paths)}/{count} downloaded")
+                                    
+                            except Exception as e:
+                                logger.warning(f"⚠️ Failed to download popular clip: {e}")
+                                continue
+                                
+            except Exception as e:
+                logger.warning(f"⚠️ Pexels popular fetch failed: {e}")
+        
+        if clips_paths:
+            logger.info(f"🎉 Total clips fetched: {len(clips_paths)}/{count}")
+        else:
+            logger.error(f"❌ Failed to fetch any B-roll clips!")
+            
         return clips_paths
 
 # ==================== VIDEO COMPOSER (MOVIEPY 2.X FIXED) ====================
@@ -247,17 +348,42 @@ class VideoComposerFixed:
             
             logger.info(f"🔊 Generating voice: '{narration[:50]}...'")
             
-            try:
-                import edge_tts
-                
-                async def generate_voice():
-                    communicate = edge_tts.Communicate(narration, "en-US-ChristopherNeural")
-                    await communicate.save(voice_path)
-                
-                asyncio.run(generate_voice())
-                logger.info("✅ Edge-TTS generation successful")
-            except Exception as e:
-                logger.warning(f"⚠️ Edge-TTS failed ({e}), falling back to gTTS...")
+            # Try Edge-TTS with retry logic
+            edge_tts_success = False
+            for attempt in range(3):
+                try:
+                    import edge_tts
+                    
+                    async def generate_voice():
+                        voices = ["en-US-ChristopherNeural", "en-US-GuyNeural", "en-US-AriaNeural"]
+                        voice = voices[attempt % len(voices)]
+                        
+                        logger.info(f"🎤 Trying Edge-TTS with {voice} (attempt {attempt + 1}/3)")
+                        communicate = edge_tts.Communicate(narration, voice)
+                        await communicate.save(voice_path)
+                    
+                    # Run with timeout
+                    asyncio.wait_for(asyncio.run(generate_voice()), timeout=30)
+                    
+                    if os.path.exists(voice_path) and os.path.getsize(voice_path) > 1000:
+                        logger.info("✅ Edge-TTS generation successful")
+                        edge_tts_success = True
+                        break
+                    else:
+                        logger.warning(f"⚠️ Edge-TTS file too small or missing")
+                        
+                except asyncio.TimeoutError:
+                    logger.warning(f"⚠️ Edge-TTS timeout on attempt {attempt + 1}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Edge-TTS failed (attempt {attempt + 1}): {e}")
+                    
+                if attempt < 2:
+                    import time
+                    time.sleep(1)  # Brief pause before retry
+            
+            # Fallback to gTTS if Edge-TTS failed
+            if not edge_tts_success:
+                logger.warning(f"⚠️ Edge-TTS failed after 3 attempts, falling back to gTTS...")
                 from gtts import gTTS
                 tts = gTTS(text=narration, lang='en', slow=False)
                 tts.save(voice_path)
@@ -432,10 +558,20 @@ class VideoComposerFixed:
             background.close()
             final_video.close()
             
+            # Delete temp voice file
             try:
                 os.remove(voice_path)
             except:
                 pass
+            
+            # Delete B-roll clips to save space
+            try:
+                import shutil
+                if os.path.exists(broll_dir):
+                    shutil.rmtree(broll_dir)
+                    logger.info("🗑️ B-roll clips deleted to save space")
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to delete B-roll clips: {e}")
             
             return output_path
             
