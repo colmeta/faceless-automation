@@ -433,8 +433,6 @@ class VideoComposerFixed:
                 audio_codec='aac',
                 bitrate='3000k',
                 preset='ultrafast',
-                threads=2,
-                threads=2,
                 logger=None  # Suppress MoviePy logs
             )
             
