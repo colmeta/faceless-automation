@@ -9,6 +9,7 @@ Lightweight version for Render free instance (512MB RAM)
 """
 
 import os
+import gc
 import subprocess
 import json
 import requests
@@ -104,7 +105,7 @@ import requests
                 audio_codec='aac',
                 bitrate='4000k',  # Lower bitrate for memory
                 preset='ultrafast',  # Faster encoding, less memory
-                threads=2  # Limit threads
+                threads=1  # Limit threads for Render 512MB
             )
             
             logger.info(f"✅ Video created: {output_path}")
@@ -113,6 +114,9 @@ import requests
             audio.close()
             bg_video.close()
             final_video.close()
+            
+            # Force garbage collection
+            gc.collect()
             
             # Delete temp files to save space
             try:

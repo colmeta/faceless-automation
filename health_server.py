@@ -37,6 +37,9 @@ app.config['VIDEOS_COUNT'] = 0
 app.config['LAST_RUN'] = 'Never'
 app.config['NEXT_RUN'] = 'Scheduled'
 
+# Global lock to prevent concurrent runs (Critical for Render 512MB limit)
+AUTOMATION_LOCK = threading.Lock()
+
 # ==================== CLOUDINARY SETUP ====================
 try:
     cloudinary.config(
@@ -157,6 +160,9 @@ def trigger_automation():
         logger.info("🚀 Manual automation trigger received")
         
         # Run automation in background
+        if AUTOMATION_LOCK.locked():
+            return jsonify({'error': 'Automation already running', 'status': 'busy'}), 429
+            
         thread = threading.Thread(target=run_automation_once, daemon=True)
         thread.start()
         
@@ -370,8 +376,13 @@ def debug_video():
 
 def run_automation_once():
     """Run automation cycle once"""
-    try:
-        logger.info("🚀 Starting automation cycle...")
+    if AUTOMATION_LOCK.locked():
+        logger.warning("⚠️ Automation already running, skipping this run")
+        return
+
+    with AUTOMATION_LOCK:
+        try:
+            logger.info("🚀 Starting automation cycle...")
         app.config['LAST_RUN'] = datetime.now().isoformat()
         
         # Import here to avoid circular imports

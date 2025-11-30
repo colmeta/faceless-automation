@@ -8,6 +8,7 @@
 """
 
 import os
+import gc
 import sys
 import json
 import logging
@@ -632,7 +633,7 @@ class VideoComposerFixed:
                 audio_codec='aac',
                 bitrate='3000k',
                 preset='ultrafast',
-                threads=2,
+                threads=1,  # Reduced to 1 for Render 512MB limit
                 logger=None  # Removed verbose parameter (MoviePy 2.x)
             )
             
@@ -642,6 +643,9 @@ class VideoComposerFixed:
             audio.close()
             background.close()
             final_video.close()
+            
+            # Force garbage collection
+            gc.collect()
             
             # Delete temp voice file
             try:
