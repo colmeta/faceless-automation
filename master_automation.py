@@ -41,6 +41,9 @@ class YouTubeTranscriptFixer:
         try:
             from youtube_transcript_api import YouTubeTranscriptApi
             
+            from youtube_transcript_api import YouTubeTranscriptApi
+            logger.info(f"🔍 YouTubeTranscriptApi dir: {dir(YouTubeTranscriptApi)}")
+            
             logger.info(f"🔍 Fetching transcript for {video_id}...")
             
             # Try the modern API first (handles auto-generated captions)
@@ -229,7 +232,7 @@ class BRollFetcher:
                     except ValueError:
                         logger.error(f"❌ Pixabay returned invalid JSON: {response.text[:100]}")
                 else:
-                    logger.error(f"❌ Pixabay API error: {response.status_code}")
+                    logger.error(f"❌ Pixabay API error: {response.status_code} - {response.text}")
                     
             except Exception as e:
                 logger.warning(f"⚠️ Pixabay fetch failed: {e}")
@@ -431,7 +434,7 @@ class VideoComposerFixed:
                 bitrate='3000k',
                 preset='ultrafast',
                 threads=2,
-                verbose=False,
+                threads=2,
                 logger=None  # Suppress MoviePy logs
             )
             

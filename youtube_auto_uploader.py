@@ -94,12 +94,25 @@ class YouTubeUploader:
     def _get_token_from_env(self):
         """Get token from environment variable with padding fix"""
         token_b64 = os.getenv('YOUTUBE_TOKEN_PICKLE_BASE64')
+        
+        # Fallback to local file if env var is missing or empty
         if not token_b64:
-            return None
+            if os.path.exists('youtube_token_base64.txt'):
+                 try:
+                     with open('youtube_token_base64.txt', 'r') as f:
+                         token_b64 = f.read().strip()
+                     logger.info("📋 Loaded token from youtube_token_base64.txt")
+                 except Exception as e:
+                     logger.error(f"❌ Failed to read token file: {e}")
+                     return None
+            else:
+                return None
             
         try:
-            # Fix base64 padding
+            # Fix base64 padding and clean string
             token_b64 = token_b64.strip()
+            token_b64 = token_b64.replace(' ', '').replace('\n', '').replace('\r', '')
+            
             missing_padding = len(token_b64) % 4
             if missing_padding:
                 token_b64 += '=' * (4 - missing_padding)
