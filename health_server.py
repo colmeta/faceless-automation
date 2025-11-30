@@ -383,34 +383,34 @@ def run_automation_once():
     with AUTOMATION_LOCK:
         try:
             logger.info("🚀 Starting automation cycle...")
-        app.config['LAST_RUN'] = datetime.now().isoformat()
-        
-        # Import here to avoid circular imports
-        # Use render-optimized version
-        import sys
-        if 'faceless_automation_render' not in sys.modules:
-            logger.info("📦 Using Render-optimized pipeline")
-        
-        from master_automation import MasterOrchestrator
-        
-        orchestrator = MasterOrchestrator()
-        results = orchestrator.run_daily_automation()
-        
-        app.config['VIDEOS_COUNT'] = app.config.get('VIDEOS_COUNT', 0) + 1
-        
-        # Cloudinary upload is handled within master_automation.py
-        if results.get('cloudinary_url'):
-            logger.info(f"✅ Video available at: {results['cloudinary_url']}")
-        
-        if results.get('status') == 'success':
-             logger.info("✅ Automation cycle completed successfully")
-        else:
-             logger.warning("⚠️ Automation cycle completed with warnings")
-        
-        logger.info("✅ Automation cycle complete")
-        
-    except Exception as e:
-        logger.error(f"❌ Automation cycle failed: {e}")
+            app.config['LAST_RUN'] = datetime.now().isoformat()
+            
+            # Import here to avoid circular imports
+            # Use render-optimized version
+            import sys
+            if 'faceless_automation_render' not in sys.modules:
+                logger.info("📦 Using Render-optimized pipeline")
+            
+            from master_automation import MasterOrchestrator
+            
+            orchestrator = MasterOrchestrator()
+            results = orchestrator.run_daily_automation()
+            
+            app.config['VIDEOS_COUNT'] = app.config.get('VIDEOS_COUNT', 0) + 1
+            
+            # Cloudinary upload is handled within master_automation.py
+            if results.get('cloudinary_url'):
+                logger.info(f"✅ Video available at: {results['cloudinary_url']}")
+            
+            if results.get('status') == 'success':
+                 logger.info("✅ Automation cycle completed successfully")
+            else:
+                 logger.warning("⚠️ Automation cycle completed with warnings")
+            
+            logger.info("✅ Automation cycle complete")
+            
+        except Exception as e:
+            logger.error(f"❌ Automation cycle failed: {e}")
 
 def self_ping():
     """Ping self every 10 minutes to stay awake"""
