@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 """
-👑 MASTER AUTOMATION - FIXED FOR RENDER 512MB
-Fixes: 
-1. YouTube transcript API compatibility 
-2. Video duration issues (3-second problem)
-3. Missing analysis fields
-4. Memory-optimized for free tier
-5. MoviePy 2.x compatibility
+👑 MASTER AUTOMATION - FIXED FOR MOVIEPY 2.X & RENDER 512MB
+✅ MoviePy 2.x compatibility (all with_* methods)
+✅ URL-encoded API requests
+✅ Graceful fallbacks (assets folder → ColorClip)
+✅ Memory optimized for Render free tier
 """
 
 import os
@@ -31,7 +29,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ==================== CRITICAL FIX 1: YOUTUBE TRANSCRIPT ====================
+# ==================== YOUTUBE TRANSCRIPT ====================
 class YouTubeTranscriptFixer:
     """Fixed YouTube transcript extraction"""
     
@@ -41,30 +39,17 @@ class YouTubeTranscriptFixer:
         try:
             from youtube_transcript_api import YouTubeTranscriptApi
             
-            from youtube_transcript_api import YouTubeTranscriptApi
-            import pkg_resources
-            try:
-                version = pkg_resources.get_distribution("youtube-transcript-api").version
-                logger.info(f"🔍 Installed youtube-transcript-api version: {version}")
-            except:
-                logger.info("🔍 Could not determine youtube-transcript-api version")
-            
-            logger.info(f"🔍 YouTubeTranscriptApi file: {sys.modules['youtube_transcript_api'].__file__}")
-            logger.info(f"🔍 YouTubeTranscriptApi dir: {dir(YouTubeTranscriptApi)}")
-            
             logger.info(f"🔍 Fetching transcript for {video_id}...")
             
-            # Try the modern API first (handles auto-generated captions)
+            # Try modern API first
             try:
                 if hasattr(YouTubeTranscriptApi, 'list_transcripts'):
                     transcripts = YouTubeTranscriptApi.list_transcripts(video_id)
                     
-                    # Try English first
                     try:
                         transcript = transcripts.find_transcript(['en'])
                     except:
-                        # Fallback to any available transcript
-                        transcript = transcripts.find_transcript(transcripts._manually_created_transcripts[0].language if transcripts._manually_created_transcripts else 'en')
+                        transcript = list(transcripts)[0]
                     
                     captions = transcript.fetch()
                     full_text = " ".join([item['text'] for item in captions])
@@ -75,23 +60,18 @@ class YouTubeTranscriptFixer:
                     raise AttributeError("Old API version")
                 
             except Exception as e:
-                logger.warning(f"⚠️ Modern API failed ({e}), trying legacy...")
+                logger.warning(f"⚠️ Modern API failed, trying legacy...")
                 
-                # Fallback to simple API (older but more reliable)
-                try:
-                    captions = YouTubeTranscriptApi.get_transcript(video_id)
-                    full_text = " ".join([item['text'] for item in captions])
-                    logger.info(f"✅ Transcript retrieved (legacy): {len(full_text)} chars")
-                    return full_text
-                except Exception as legacy_error:
-                    logger.error(f"❌ Legacy transcript failed: {legacy_error}")
-                    return None
+                captions = YouTubeTranscriptApi.get_transcript(video_id)
+                full_text = " ".join([item['text'] for item in captions])
+                logger.info(f"✅ Transcript retrieved (legacy): {len(full_text)} chars")
+                return full_text
         
         except Exception as e:
             logger.error(f"❌ Transcript error: {e}")
             return None
 
-# ==================== CRITICAL FIX 2: ANALYSIS WITH FALLBACKS ====================
+# ==================== SAFE ANALYZER ====================
 class SafeAnalyzer:
     """Analyze content with guaranteed output fields"""
     
@@ -118,7 +98,6 @@ IMPORTANT: Return ONLY the JSON object, nothing else."""
             response = self.model.generate_content(f"{prompt}\n\nTranscript:\n{transcript[:5000]}")
             text = response.text.strip()
             
-            # Extract JSON
             import re
             json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text, re.DOTALL)
             
@@ -127,7 +106,7 @@ IMPORTANT: Return ONLY the JSON object, nothing else."""
                 logger.info("✅ Analysis complete")
                 return self._ensure_fields(analysis)
             else:
-                logger.warning("⚠️ Could not parse JSON response, using defaults")
+                logger.warning("⚠️ Could not parse JSON, using defaults")
                 return self._create_default_analysis()
         
         except Exception as e:
@@ -138,13 +117,12 @@ IMPORTANT: Return ONLY the JSON object, nothing else."""
         """Ensure all required fields exist"""
         defaults = {
             'short_hook': 'This AI Tool is Amazing',
-            'summary': 'An excellent AI tool that will help you.',
+            'summary': 'An excellent AI tool that will help you achieve more.',
             'key_topics': 'AI, tools, automation',
             'cta': 'Try it free now',
             'affiliate_angle': 'AI tools'
         }
         
-        # Fill missing fields
         for key, default_value in defaults.items():
             if key not in analysis or not analysis[key]:
                 logger.warning(f"⚠️ Missing field '{key}', using default")
@@ -155,16 +133,16 @@ IMPORTANT: Return ONLY the JSON object, nothing else."""
     def _create_default_analysis(self) -> dict:
         """Create default analysis when all else fails"""
         return {
-            'short_hook': 'This Ferrari Strategy Changed Everything',
-            'summary': 'Imagine driving a Ferrari through the Italian Alps. The wind in your hair, the roar of the engine. This isn\'t just a dream, it\'s a lifestyle. Discover how you can achieve financial freedom and travel the whole world in style. Stop watching others live your dream. Start building your empire today with these simple steps. You deserve the best life has to offer.',
-            'key_topics': 'luxury, travel, motivation, ferrari, success',
-            'cta': 'Click the link to start your journey',
-            'affiliate_angle': 'Financial Freedom'
+            'short_hook': 'This AI Strategy Changed Everything',
+            'summary': 'Discover the power of AI automation. Transform your workflow with cutting-edge tools. Stop wasting time on manual tasks. Let AI handle the heavy lifting while you focus on what matters. Join thousands who are already using this game-changing technology.',
+            'key_topics': 'AI, automation, productivity, technology, innovation',
+            'cta': 'Start your free trial today',
+            'affiliate_angle': 'AI Productivity Tools'
         }
 
-# ==================== B-ROLL FETCHER ====================
+# ==================== B-ROLL FETCHER (FIXED) ====================
 class BRollFetcher:
-    """Fetch stock footage"""
+    """Fetch stock footage with URL encoding"""
     
     def __init__(self):
         self.pexels_key = os.getenv('PEXELS_API_KEY', '').strip()
@@ -188,12 +166,10 @@ class BRollFetcher:
                     for i, video in enumerate(data['videos']):
                         if i >= count: break
                         
-                        # Get HD video file
                         video_files = video['video_files']
                         hd_file = next((f for f in video_files if f.get('quality') == 'hd'), video_files[0])
                         video_url = hd_file['link']
                         
-                        # Download
                         output_path = os.path.join(output_dir, f"broll_pexels_{i}.mp4")
                         video_data = requests.get(video_url, timeout=30)
                         
@@ -201,61 +177,58 @@ class BRollFetcher:
                             f.write(video_data.content)
                         
                         clips_paths.append(output_path)
-                        logger.info(f"✅ Pexels clip downloaded: {output_path}")
+                        logger.info(f"✅ Pexels clip {i+1}/{count} downloaded")
                         
                     if len(clips_paths) >= count:
                         return clips_paths
             except Exception as e:
                 logger.warning(f"⚠️ Pexels fetch failed: {e}")
 
-        # Try Pixabay if needed
+        # Try Pixabay if needed (FIXED URL ENCODING)
         if len(clips_paths) < count and self.pixabay_key:
             try:
                 needed = count - len(clips_paths)
-                query_encoded = urllib.parse.quote(query)
+                query_encoded = urllib.parse.quote(query)  # ✅ FIXED
                 url = f"https://pixabay.com/api/videos/?key={self.pixabay_key}&q={query_encoded}&per_page={needed + 3}"
                 
                 response = requests.get(url, timeout=10)
                 
                 if response.status_code == 200:
-                    try:
-                        data = response.json()
-                        hits = data.get('hits', [])
+                    data = response.json()
+                    hits = data.get('hits', [])
+                    
+                    for i, hit in enumerate(hits):
+                        if len(clips_paths) >= count: break
                         
-                        for i, hit in enumerate(hits):
-                            if len(clips_paths) >= count: break
+                        videos = hit.get('videos', {})
+                        video_url = videos.get('medium', {}).get('url')
+                        
+                        if video_url:
+                            output_path = os.path.join(output_dir, f"broll_pixabay_{i}.mp4")
+                            video_data = requests.get(video_url, timeout=30)
                             
-                            videos = hit.get('videos', {})
-                            video_url = videos.get('medium', {}).get('url')
+                            with open(output_path, 'wb') as f:
+                                f.write(video_data.content)
                             
-                            if video_url:
-                                output_path = os.path.join(output_dir, f"broll_pixabay_{i}.mp4")
-                                video_data = requests.get(video_url, timeout=30)
-                                
-                                with open(output_path, 'wb') as f:
-                                    f.write(video_data.content)
-                                
-                                clips_paths.append(output_path)
-                                logger.info(f"✅ Pixabay clip downloaded: {output_path}")
-                    except ValueError:
-                        logger.error(f"❌ Pixabay returned invalid JSON: {response.text[:100]}")
+                            clips_paths.append(output_path)
+                            logger.info(f"✅ Pixabay clip {len(clips_paths)}/{count} downloaded")
                 else:
-                    logger.error(f"❌ Pixabay API error: {response.status_code} - {response.text}")
+                    logger.error(f"❌ Pixabay API error: {response.status_code}")
                     
             except Exception as e:
                 logger.warning(f"⚠️ Pixabay fetch failed: {e}")
         
         return clips_paths
 
-# ==================== CRITICAL FIX 3: VIDEO DURATION (THE 3-SECOND BUG) ====================
+# ==================== VIDEO COMPOSER (MOVIEPY 2.X FIXED) ====================
 class VideoComposerFixed:
-    """Fixed video composer for proper duration"""
+    """MoviePy 2.x compatible video composer"""
     
     def __init__(self):
         self.broll_fetcher = BRollFetcher()
     
     def generate_voice_and_video(self, script: dict, output_path: str) -> str:
-        """Generate voice and create video with correct duration"""
+        """Generate voice and create video - FULLY FIXED"""
         try:
             from moviepy import (
                 ColorClip, TextClip, CompositeVideoClip, 
@@ -264,7 +237,7 @@ class VideoComposerFixed:
             
             logger.info("🎬 Starting video creation...")
             
-            # STEP 1: Generate voice (using Edge-TTS for professional quality)
+            # STEP 1: Generate voice
             narration = script.get('narration', '')
             if not narration:
                 narration = f"{script['hook']}. {script.get('cta', 'Try it now')}."
@@ -272,7 +245,7 @@ class VideoComposerFixed:
             voice_path = "temp/voice.mp3"
             os.makedirs("temp", exist_ok=True)
             
-            logger.info(f"🔊 Generating voice with Edge-TTS: '{narration[:50]}...'")
+            logger.info(f"🔊 Generating voice: '{narration[:50]}...'")
             
             try:
                 import edge_tts
@@ -290,32 +263,29 @@ class VideoComposerFixed:
                 tts.save(voice_path)
                 logger.info("✅ gTTS generation successful (fallback)")
             
-            # STEP 2: Get actual audio duration
+            # STEP 2: Get audio duration
             audio = AudioFileClip(voice_path)
             actual_duration = audio.duration
             
             logger.info(f"⏱️ Audio duration: {actual_duration:.2f} seconds")
             
-            # STEP 3: Create background with Multi-Clip System
-            # Try dynamic B-roll first
+            # STEP 3: Create background (FIXED FALLBACK CHAIN)
+            background = None
+            
+            # Try 1: Dynamic B-roll
             topic = script.get('topic', 'technology')
             broll_dir = "temp/broll_seq"
             os.makedirs(broll_dir, exist_ok=True)
             
-            # Calculate needed clips (approx 1 clip every 4-5 seconds)
             num_clips = max(3, int(actual_duration / 4))
             
-            logger.info(f"🎞️ Fetching {num_clips} clips for topic: {topic}")
+            logger.info(f"🎞️ Fetching {num_clips} clips for: {topic}")
             fetched_clips = self.broll_fetcher.fetch_broll_sequence(topic, num_clips, broll_dir)
-            
-            local_bg = "assets/background.mp4"
-            local_img = "assets/background.jpg"
             
             if fetched_clips:
                 logger.info(f"✅ Using {len(fetched_clips)} dynamic clips")
                 clip_objs = []
                 
-                # Create sequence
                 total_dur = 0
                 target_clip_dur = actual_duration / len(fetched_clips)
                 
@@ -323,93 +293,104 @@ class VideoComposerFixed:
                     try:
                         clip = VideoFileClip(clip_path)
                         
-                        # Resize to cover 1080x1920
-                        # MoviePy 2.x: resize -> resized
+                        # ✅ FIXED: MoviePy 2.x syntax
                         clip = clip.resized(height=1920)
                         if clip.w < 1080:
-                             clip = clip.resized(width=1080)
-                        clip = clip.with_effects([vfx.Crop(x1=clip.w/2 - 540, width=1080, height=1920)])
+                            clip = clip.resized(width=1080)
                         
-                        # Set duration for this segment
-                        # Last clip takes remaining time
+                        # ✅ FIXED: with_effects instead of fx
+                        clip = clip.with_effects([
+                            vfx.Crop(x1=int(clip.w/2 - 540), width=1080, height=1920)
+                        ])
+                        
                         if i == len(fetched_clips) - 1:
                             dur = max(0, actual_duration - total_dur)
                         else:
                             dur = target_clip_dur
                         
-                        # Loop if too short
                         if clip.duration < dur:
-                            clip = clip.loop(duration=dur)
+                            clip = clip.with_effects([vfx.Loop(duration=dur)])
                         else:
-                            clip = clip.subclip(0, dur)
+                            clip = clip.subclipped(0, dur)
                             
                         clip_objs.append(clip)
                         total_dur += dur
                     except Exception as e:
-                        logger.warning(f"⚠️ Failed to process clip {clip_path}: {e}")
+                        logger.warning(f"⚠️ Clip {i} failed: {e}")
                 
                 if clip_objs:
                     background = concatenate_videoclips(clip_objs, method="compose")
-                else:
-                    # Fallback if all clips failed processing
-                    background = None
-            else:
-                background = None
-
-            # Fallback to local assets if dynamic failed
+            
+            # Try 2: Assets folder video
             if background is None:
+                local_bg = "assets/background.mp4"
                 if os.path.exists(local_bg):
-                    logger.info(f"found background video at {local_bg}")
+                    logger.info(f"📂 Using assets/background.mp4")
                     video_clip = VideoFileClip(local_bg)
+                    
                     if video_clip.duration < actual_duration:
-                        video_clip = video_clip.loop(duration=actual_duration)
+                        video_clip = video_clip.with_effects([vfx.Loop(duration=actual_duration)])
                     else:
-                        video_clip = video_clip.subclip(0, actual_duration)
+                        video_clip = video_clip.subclipped(0, actual_duration)
                     
                     background = video_clip.resized(height=1920)
                     if background.w < 1080:
-                         background = background.resized(width=1080)
-                    background = background.with_effects([vfx.Crop(x1=background.w/2 - 540, width=1080, height=1920)])
-
-                elif os.path.exists(local_img):
-                    logger.info(f"Found background image at {local_img}")
+                        background = background.resized(width=1080)
+                    
+                    background = background.with_effects([
+                        vfx.Crop(x1=int(background.w/2 - 540), width=1080, height=1920)
+                    ])
+            
+            # Try 3: Assets folder image
+            if background is None:
+                local_img = "assets/background.jpg"
+                if os.path.exists(local_img):
+                    logger.info(f"📂 Using assets/background.jpg")
                     img = ImageClip(local_img)
+                    
                     background = img.resized(height=1920)
                     if background.w < 1080:
                         background = background.resized(width=1080)
-                    background = background.with_effects([vfx.Crop(x_center=background.w/2, y_center=background.h/2, width=1080, height=1920)])
-                    # MoviePy 2.x: set_duration -> with_duration, set_position -> with_position
+                    
+                    background = background.with_effects([
+                        vfx.Crop(x_center=background.w/2, y_center=background.h/2, width=1080, height=1920)
+                    ])
+                    
+                    # ✅ FIXED: with_duration, with_position
                     background = background.with_duration(actual_duration)
                     background = background.with_position(('center', 'center'))
-                else:
-                    logger.warning("⚠️ No background found, using ColorClip")
-                    background = ColorClip(
-                        size=(1080, 1920),
-                        color=(20, 20, 60),
-                        duration=actual_duration
-                    )
             
-            # STEP 4: Add simple hook text
+            # Try 4: ColorClip fallback (never crashes)
+            if background is None:
+                logger.warning("⚠️ Using ColorClip fallback")
+                background = ColorClip(
+                    size=(1080, 1920),
+                    color=(20, 20, 60),
+                    duration=actual_duration
+                )
+            
+            # STEP 4: Add hook text (FIXED)
             try:
-                # MoviePy 2.x: TextClip(text=..., font_size=...)
                 hook_text = TextClip(
                     text=script['hook'][:40].upper(),
-                    font_size=60,
+                    font_size=60,  # ✅ FIXED: font_size not fontsize
                     color='yellow',
                     stroke_color='black',
                     stroke_width=2,
                     method='caption',
                     size=(1000, None)
                 ).with_position('center').with_duration(min(3, actual_duration))
+                
+                hook_text = hook_text.with_effects([vfx.FadeIn(0.5)])
             except Exception as e:
                 logger.warning(f"⚠️ Hook text failed: {e}")
                 hook_text = None
             
-            # STEP 5: Add CTA text at the end
+            # STEP 5: Add CTA text (FIXED)
             try:
                 cta_text = TextClip(
                     text=script['cta'][:30].upper(),
-                    font_size=50,
+                    font_size=50,  # ✅ FIXED
                     color='white',
                     bg_color='red',
                     method='caption',
@@ -429,10 +410,9 @@ class VideoComposerFixed:
                 clips.append(cta_text)
             
             final_video = CompositeVideoClip(clips, size=(1080, 1920))
-            # MoviePy 2.x: set_audio -> with_audio
-            final_video = final_video.with_audio(audio)
+            final_video = final_video.with_audio(audio)  # ✅ FIXED
             
-            # STEP 7: Export with correct settings
+            # STEP 7: Export (memory optimized)
             logger.info(f"💾 Writing video to {output_path}...")
             final_video.write_videofile(
                 output_path,
@@ -441,7 +421,9 @@ class VideoComposerFixed:
                 audio_codec='aac',
                 bitrate='3000k',
                 preset='ultrafast',
-                logger=None  # Suppress MoviePy logs
+                threads=2,
+                verbose=False,
+                logger=None
             )
             
             logger.info(f"✅ Video created: {output_path} ({actual_duration:.2f}s)")
@@ -450,15 +432,21 @@ class VideoComposerFixed:
             audio.close()
             background.close()
             final_video.close()
-            os.remove(voice_path)
+            
+            try:
+                os.remove(voice_path)
+            except:
+                pass
             
             return output_path
             
         except Exception as e:
             logger.error(f"❌ Video creation failed: {e}")
+            import traceback
+            traceback.print_exc()
             raise
 
-# ==================== FIXED MASTER ORCHESTRATOR ====================
+# ==================== MASTER ORCHESTRATOR ====================
 class MasterOrchestrator:
     """Fixed master automation"""
     
@@ -482,7 +470,7 @@ class MasterOrchestrator:
         logger.info("✅ Master Orchestrator initialized")
     
     def run_daily_automation(self):
-        """Run fixed automation"""
+        """Run complete automation cycle"""
         try:
             logger.info("\n" + "="*80)
             logger.info(f"🚀 DAILY AUTOMATION STARTED - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -500,7 +488,7 @@ class MasterOrchestrator:
                     part='snippet',
                     type='video',
                     maxResults=5,
-                    order='date'  # Get newest videos
+                    order='date'
                 )
                 
                 response = request.execute()
@@ -509,11 +497,9 @@ class MasterOrchestrator:
                     video_id = response['items'][0]['id']['videoId']
                     logger.info(f"✅ Found viral video: {video_id}")
                     
-                    # Get transcript
                     transcript = self.transcript_fixer.get_transcript(video_id)
                     
                     if transcript:
-                        # Analyze transcript
                         analysis = self.analyzer.analyze_transcript(transcript)
                     else:
                         logger.warning("⚠️ No transcript, using defaults")
@@ -526,7 +512,7 @@ class MasterOrchestrator:
                 logger.error(f"❌ Video search failed: {e}")
                 analysis = self.analyzer._create_default_analysis()
             
-            logger.info("✅ Analysis complete with all required fields")
+            logger.info("✅ Analysis complete")
             
             # PHASE 2: Generate video
             logger.info("\n📍 PHASE 2: Generating video...")
@@ -545,8 +531,7 @@ class MasterOrchestrator:
             
             logger.info("✅ Video generated successfully")
             
-            
-            # PHASE 3: Upload to Cloudinary (if configured)
+            # PHASE 3: Upload to Cloudinary
             logger.info("\n📍 PHASE 3: Uploading to Cloudinary...")
             
             cloudinary_url = None
@@ -574,16 +559,13 @@ class MasterOrchestrator:
                     
                 except Exception as e:
                     logger.error(f"⚠️ Cloudinary upload failed: {e}")
-
-            # PHASE 4: Upload to YouTube
-            logger.info("\n📍 PHASE 4: Uploading to YouTube...")
+            
+            # PHASE 4: Upload to YouTube (optional)
+            logger.info("\n📍 PHASE 4: YouTube upload...")
             youtube_url = None
             
             if self.youtube_uploader:
                 try:
-                    logger.info("🚀 Starting YouTube upload...")
-                    
-                    # Prepare metadata
                     hashtags = [tag.strip() for tag in analysis['key_topics'].split(',')]
                     
                     upload_result = self.youtube_uploader.upload_shorts_optimized(
@@ -591,24 +573,24 @@ class MasterOrchestrator:
                         hook=analysis['short_hook'],
                         topic=analysis['key_topics'],
                         hashtags=hashtags,
-                        affiliate_link=analysis.get('cta_link', 'https://example.com')
+                        affiliate_link='https://example.com'
                     )
                     
                     youtube_url = upload_result['url']
-                    logger.info(f"✅ YouTube Upload Successful: {youtube_url}")
+                    logger.info(f"✅ YouTube URL: {youtube_url}")
                     
                 except Exception as e:
                     logger.error(f"❌ YouTube upload failed: {e}")
             else:
-                logger.warning("⚠️ Skipping YouTube upload (uploader not initialized)")
+                logger.info("⚠️ YouTube upload skipped (not configured)")
             
-            # Cleanup local file only after all uploads are done
+            # Cleanup local file
             if os.path.exists(output_path):
                 try:
                     os.remove(output_path)
                     logger.info("🗑️ Local file deleted")
-                except Exception as e:
-                    logger.warning(f"⚠️ Could not delete local file: {e}")
+                except:
+                    pass
             
             logger.info("\n" + "="*80)
             logger.info("🎉 DAILY AUTOMATION COMPLETE!")
@@ -617,20 +599,20 @@ class MasterOrchestrator:
             return {
                 'status': 'success',
                 'analysis': analysis,
-                'video_path': output_path,
                 'cloudinary_url': cloudinary_url,
+                'youtube_url': youtube_url,
                 'timestamp': datetime.now().isoformat()
             }
         
         except Exception as e:
-            logger.error(f"❌ Daily automation failed: {e}")
+            logger.error(f"❌ Automation failed: {e}")
             import traceback
             traceback.print_exc()
             raise
 
-# ==================== SIMPLE CLI ====================
+# ==================== MAIN ====================
 def main():
-    """Simple one-shot automation"""
+    """Entry point"""
     try:
         orchestrator = MasterOrchestrator()
         orchestrator.run_daily_automation()
