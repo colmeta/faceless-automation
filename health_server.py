@@ -206,6 +206,14 @@ def stats():
         logger.error(f"Stats error: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/test-ui')
+def test_ui():
+    """Mobile-friendly API testing interface"""
+    html = '''
+    <!-- The entire HTML from the artifact above -->
+    '''
+    return html
+    
 @app.route('/upload', methods=['POST'])
 def upload_video():
     """Upload video to Cloudinary"""
