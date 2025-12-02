@@ -19,7 +19,6 @@ import random
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List
-import sys
 import io
 
 # Fix Windows console encoding for emojis
@@ -45,7 +44,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('master_automation.log'),
+        logging.FileHandler('master_automation.log', encoding='utf-8'),
         logging.StreamHandler()
     ]
 )
@@ -232,62 +231,96 @@ class BRollFetcher:
         
         logger.info(f"🎬 Fetching {count} B-roll clips for: '{query}'")
         
-        # Try Pexels first (most reliable)
-        if self.pexels_key:
-            try:
-                query_encoded = urllib.parse.quote(query)
-                url = f"https://api.pexels.com/videos/search?query={query_encoded}&per_page={count}&orientation=portrait"
-                headers = {"Authorization": self.pexels_key}
-                
-                logger.info(f"🔍 Pexels API: {url}")
-                response = requests.get(url, headers=headers, timeout=10)
-                
-                if response.status_code == 200:
-                    data = response.json()
+        # If primary query fails, try these fallback queries
+        fallback_queries = [query, "business office", "technology innovation", "modern workspace", "digital technology"]
+        
+        for attempt, search_query in enumerate(fallback_queries):
+            if len(clips_paths) >= count:
+                break  # We have enough clips
+            
+            logger.info(f"🔍 Attempt {attempt + 1}/{len(fallback_queries)}: Searching for '{search_query}'")
+            
+            # Try Pexels first (most reliable)
+            if self.pexels_key:
+                try:
+                    query_encoded = urllib.parse.quote(search_query)
+                    url = f"https://api.pexels.com/videos/search?query={query_encoded}&per_page={count}&orientation=portrait"
+                    headers = {"Authorization": self.pexels_key}
                     
-                    if data.get('videos'):
-                        logger.info(f"✅ Pexels found {len(data['videos'])} videos")
+                    logger.info(f"🔍 Pexels API: {url}")
+                    response = requests.get(url, headers=headers, timeout=15)
+                    
+                    if response.status_code == 200:
+                        data = response.json()
                         
-                        for i, video in enumerate(data['videos']):
-                            if i >= count: break
+                        if data.get('videos'):
+                            logger.info(f"✅ Pexels found {len(data['videos'])} videos for '{search_query}'")
                             
-                            try:
-                                video_files = video['video_files']
-                                # Prefer HD, fallback to any available
-                                hd_file = next((f for f in video_files if f.get('quality') == 'hd'), video_files[0])
-                                video_url = hd_file['link']
+                            for i, video in enumerate(data['videos']):
+                                if len(clips_paths) >= count: break
                                 
-                                output_path = os.path.join(output_dir, f"broll_pexels_{i}.mp4")
-                                
-                                # Download with streaming to save memory
-                                video_response = requests.get(video_url, timeout=30, stream=True)
-                                video_response.raise_for_status()
-                                
-                                with open(output_path, 'wb') as f:
-                                    for chunk in video_response.iter_content(chunk_size=8192):
-                                        f.write(chunk)
-                                
-                                # Verify file was downloaded
-                                if os.path.exists(output_path) and os.path.getsize(output_path) > 1000:
-                                    clips_paths.append(output_path)
-                                    logger.info(f"✅ Pexels clip {i+1}/{count} downloaded ({os.path.getsize(output_path)} bytes)")
-                                else:
-                                    logger.warning(f"⚠️ Downloaded file is too small or missing")
+                                try:
+                                    video_files = video['video_files']
                                     
-                            except Exception as e:
-                                logger.warning(f"⚠️ Failed to download clip {i}: {e}")
-                                continue
-                            
-                        if len(clips_paths) >= count:
-                            logger.info(f"🎉 Successfully fetched {len(clips_paths)} clips from Pexels")
-                            return clips_paths
+                                    # 🧠 SMART SELECTION: Avoid 4K to prevent OOM on Render
+                                    # Filter for files <= 1080p (1920x1080)
+                                    valid_files = [
+                                        f for f in video_files 
+                                        if f.get('width') and f.get('height') 
+                                        and f['width'] <= 1920 and f['height'] <= 1920
+                                    ]
+                                    
+                                    if not valid_files:
+                                        # Fallback if no HD/SD found (rare)
+                                        valid_files = video_files
+                                    
+                                    # Find best match: closest to 720p width (optimal for mobile)
+                                    best_file = min(valid_files, key=lambda x: abs(x.get('width', 0) - 720))
+                                    video_url = best_file['link']
+                                    
+                                    logger.info(f"🎥 Selected quality: {best_file.get('width')}x{best_file.get('height')} (avoiding 4K)")
+                                    
+                                    # Force GC before download
+                                    gc.collect()
+                                    
+                                    output_path = os.path.join(output_dir, f"broll_pexels_{len(clips_paths)}.mp4")
+                                    
+                                    logger.info(f"📥 Downloading clip {len(clips_paths)+1}: {video_url[:60]}...")
+                                    
+                                    # ✅ INCREASED TIMEOUT: 60 seconds instead of 30
+                                    video_response = requests.get(video_url, timeout=60, stream=True)
+                                    video_response.raise_for_status()
+                                    
+                                    bytes_written = 0
+                                    with open(output_path, 'wb') as f:
+                                        for chunk in video_response.iter_content(chunk_size=8192):
+                                            f.write(chunk)
+                                            bytes_written += len(chunk)
+                                    
+                                    # Verify file was downloaded (must be > 100KB)
+                                    file_size = os.path.getsize(output_path)
+                                    if os.path.exists(output_path) and file_size > 100000:
+                                        clips_paths.append(output_path)
+                                        logger.info(f"✅ Pexels clip {len(clips_paths)}/{count} downloaded: {file_size / 1024 / 1024:.2f} MB")
+                                    else:
+                                        logger.warning(f"⚠️ Downloaded file is too small: {file_size} bytes (expected > 100KB)")
+                                        if os.path.exists(output_path):
+                                            os.remove(output_path)
+                                        
+                                except Exception as e:
+                                    logger.warning(f"⚠️ Failed to download clip {i}: {str(e)[:100]}")
+                                    continue
+                                
+                            if len(clips_paths) >= count:
+                                logger.info(f"🎉 Successfully fetched {len(clips_paths)} clips from Pexels")
+                                return clips_paths
+                        else:
+                            logger.warning(f"⚠️ Pexels returned no videos for query: {search_query}")
                     else:
-                        logger.warning(f"⚠️ Pexels returned no videos for query: {query}")
-                else:
-                    logger.error(f"❌ Pexels API error: {response.status_code} - {response.text[:200]}")
-                    
-            except Exception as e:
-                logger.warning(f"⚠️ Pexels fetch failed: {e}")
+                        logger.error(f"❌ Pexels API error: {response.status_code} - {response.text[:200]}")
+                        
+                except Exception as e:
+                    logger.warning(f"⚠️ Pexels fetch failed for '{search_query}': {e}")
 
         # Try Pixabay if needed (with improved error handling)
         if len(clips_paths) < count and self.pixabay_key:
@@ -405,10 +438,10 @@ class VideoComposerFixed:
         """Generate voice and create video - FULLY FIXED"""
         try:
             from moviepy import (
-    		TextClip, CompositeVideoClip, 
-    		AudioFileClip, concatenate_videoclips, VideoFileClip, ImageClip, vfx
-	    )
-	    from moviepy.video.VideoClip import ColorClip
+                TextClip, CompositeVideoClip, 
+                AudioFileClip, concatenate_videoclips, VideoFileClip, ImageClip, vfx
+            )
+            from moviepy.video.VideoClip import ColorClip
             logger.info("🎬 Starting video creation...")
             
             # STEP 1: Generate voice
@@ -476,7 +509,9 @@ class VideoComposerFixed:
             broll_dir = "temp/broll_seq"
             os.makedirs(broll_dir, exist_ok=True)
             
-            num_clips = max(3, int(actual_duration / 4))
+            # 🧠 MEMORY OPTIMIZATION: Cap max clips to 6 for Render Free Tier
+            # Previous logic (duration/4) could request 15+ clips for 60s video -> OOM
+            num_clips = min(6, max(3, int(actual_duration / 5)))
             
             logger.info(f"🎞️ Fetching {num_clips} clips for: {topic}")
             fetched_clips = self.broll_fetcher.fetch_broll_sequence(topic, num_clips, broll_dir)
@@ -514,13 +549,20 @@ class VideoComposerFixed:
                             
                         clip_objs.append(clip)
                         total_dur += dur
+                        
+                        # 🧹 Force GC after each clip to save RAM
+                        gc.collect()
+                        
                     except Exception as e:
                         logger.warning(f"⚠️ Clip {i} failed: {e}")
                 
                 if clip_objs:
+                    logger.info("🧩 Concatenating clips...")
                     background = concatenate_videoclips(clip_objs, method="compose")
+                    del clip_objs  # Free the list reference
+                    gc.collect()   # Force cleanup
             
-            # Try 2: Assets folder video
+            # Try 2: Assets folder video ONLY (no static images!)
             if background is None:
                 local_bg = "assets/background.mp4"
                 if os.path.exists(local_bg):
@@ -540,27 +582,20 @@ class VideoComposerFixed:
                         vfx.Crop(x1=int(background.w/2 - 360), width=720, height=1280)
                     ])
             
-            # Try 3: Assets folder image
-            if background is None:
-                local_img = "assets/background.jpg"
-                if os.path.exists(local_img):
-                    logger.info(f"📂 Using assets/background.jpg")
-                    img = ImageClip(local_img)
-                    
-                    background = img.resized(height=1280)
-                    if background.w < 720:
-                        background = background.resized(width=720)
-                    
-                    background = background.with_effects([
-                        vfx.Crop(x_center=background.w/2, y_center=background.h/2, width=720, height=1280)
-                    ])
-                    
-                    # ✅ FIXED: with_duration, with_position
-                    background = background.with_duration(actual_duration)
-                    background = background.with_position(('center', 'center'))
+            # ⛔ REMOVED: Static image fallback - we want REAL videos only!
+            # Assets folder images are now DISABLED to force dynamic content
             
-            # Try 4: ColorClip with VARIED colors (not same every time)
+            # Try 4: ColorClip with VARIED colors (ONLY if all B-roll attempts failed)
             if background is None:
+                logger.error("❌ ========================================")
+                logger.error("❌ CRITICAL: B-ROLL FETCH COMPLETELY FAILED")
+                logger.error(f"❌ Pexels API Key available: {bool(self.broll_fetcher.pexels_key)}")
+                logger.error(f"❌ Pixabay API Key available: {bool(self.broll_fetcher.pixabay_key)}")
+                logger.error(f"❌ Requested clips: {num_clips}")
+                logger.error(f"❌ Fetched clips: {len(fetched_clips) if fetched_clips else 0}")
+                logger.error("❌ Falling back to ColorClip (NOT IDEAL)")
+                logger.error("❌ ========================================")
+                
                 logger.warning("⚠️ Using ColorClip with varied colors")
                 
                 # Get varied color based on timestamp
