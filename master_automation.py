@@ -19,6 +19,13 @@ import random
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List
+import sys
+import io
+
+# Fix Windows console encoding for emojis
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 # Import content templates for variation
 try:
@@ -99,7 +106,7 @@ class SafeAnalyzer:
     def __init__(self):
         import google.generativeai as genai
         genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
-        self.model = genai.GenerativeModel('gemini-2.0-flash')
+        self.model = genai.GenerativeModel('models/gemini-1.5-flash')
     
     def analyze_transcript(self, transcript: str) -> dict:
         """Analyze with all required fields guaranteed"""
@@ -398,10 +405,10 @@ class VideoComposerFixed:
         """Generate voice and create video - FULLY FIXED"""
         try:
             from moviepy import (
-                ColorClip, TextClip, CompositeVideoClip, 
-                AudioFileClip, concatenate_videoclips, VideoFileClip, ImageClip, vfx
-            )
-            
+    		TextClip, CompositeVideoClip, 
+    		AudioFileClip, concatenate_videoclips, VideoFileClip, ImageClip, vfx
+	    )
+	    from moviepy.video.VideoClip import ColorClip
             logger.info("🎬 Starting video creation...")
             
             # STEP 1: Generate voice
