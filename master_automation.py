@@ -434,6 +434,123 @@ class VideoComposerFixed:
     def __init__(self):
         self.broll_fetcher = BRollFetcher()
     
+    def resize_with_ffmpeg(self, input_path: str, output_path: str, width: int, height: int) -> bool:
+        """Resize video using FFmpeg CLI to save memory (MoviePy is too RAM heavy)"""
+        try:
+            import subprocess
+            
+            # Scale and crop to fill 720x1280 (9:16)
+            # scale=-1:1280 sets height to 1280 and keeps aspect ratio
+            # crop=720:1280 centers the crop
+            cmd = [
+                'ffmpeg', '-y',
+                '-i', input_path,
+                '-vf', f'scale=-1:{height},crop={width}:{height}:(iw-{width})/2:0,setsar=1',
+                '-c:v', 'libx264',
+                '-preset', 'ultrafast',
+                '-crf', '28',
+                '-an',  # Remove audio from B-roll
+                output_path
+            ]
+            
+            logger.info(f"🎞️ FFmpeg resizing: {input_path} -> {output_path}")
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode == 0 and os.path.exists(output_path):
+                return True
+            else:
+                logger.warning(f"⚠️ FFmpeg failed: {result.stderr[:200]}")
+                return False
+                
+        except Exception as e:
+            logger.warning(f"⚠️ FFmpeg error: {e}")
+            return False
+
+            return False
+
+    def create_background_with_ffmpeg(self, clips_paths: List[str], total_duration: float) -> str:
+        """
+        Create background video using ONLY FFmpeg (Zero RAM usage in Python)
+        1. Resize & Trim each clip
+        2. Concat all clips
+        3. Return path to single background video
+        """
+        try:
+            import subprocess
+            
+            processed_clips = []
+            target_duration = total_duration / len(clips_paths)
+            
+            # Step 1: Process each clip (Resize + Crop + Trim)
+            for i, clip_path in enumerate(clips_paths):
+                output_path = clip_path.replace(".mp4", f"_processed_{i}.mp4")
+                
+                # Calculate duration for this clip
+                if i == len(clips_paths) - 1:
+                    # Last clip takes remaining time to ensure exact match
+                    # We add 0.5s buffer to be safe, MoviePy will trim final result
+                    duration = target_duration + 1.0 
+                else:
+                    duration = target_duration
+                
+                # FFmpeg command: Resize -> Crop -> Trim
+                # scale=-1:1280 (height 1280, keep aspect)
+                # crop=720:1280 (center crop)
+                # -t {duration} (trim length)
+                cmd = [
+                    'ffmpeg', '-y',
+                    '-i', clip_path,
+                    '-vf', f'scale=-1:1280,crop=720:1280:(iw-720)/2:0,setsar=1',
+                    '-t', str(duration),
+                    '-c:v', 'libx264',
+                    '-preset', 'ultrafast',
+                    '-crf', '28',
+                    '-an',
+                    output_path
+                ]
+                
+                logger.info(f"🎞️ Processing clip {i+1}/{len(clips_paths)} via FFmpeg...")
+                subprocess.run(cmd, check=True, capture_output=True)
+                
+                if os.path.exists(output_path):
+                    processed_clips.append(output_path)
+            
+            # Step 2: Create Concat List
+            if not processed_clips:
+                return None
+                
+            concat_list_path = "temp/concat_list.txt"
+            with open(concat_list_path, 'w') as f:
+                for path in processed_clips:
+                    # FFmpeg requires absolute paths or safe relative paths
+                    # We use absolute to be safe
+                    abs_path = os.path.abspath(path).replace('\\', '/')
+                    f.write(f"file '{abs_path}'\n")
+            
+            # Step 3: Concatenate
+            final_bg_path = "temp/final_background.mp4"
+            concat_cmd = [
+                'ffmpeg', '-y',
+                '-f', 'concat',
+                '-safe', '0',
+                '-i', concat_list_path,
+                '-c', 'copy',
+                final_bg_path
+            ]
+            
+            logger.info("🔗 Concatenating clips via FFmpeg...")
+            subprocess.run(concat_cmd, check=True, capture_output=True)
+            
+            if os.path.exists(final_bg_path):
+                logger.info(f"✅ Background created: {final_bg_path}")
+                return final_bg_path
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"❌ FFmpeg background creation failed: {e}")
+            return None
+
     def generate_voice_and_video(self, script: dict, output_path: str) -> str:
         """Generate voice and create video - FULLY FIXED"""
         try:
@@ -518,49 +635,22 @@ class VideoComposerFixed:
             
             if fetched_clips:
                 logger.info(f"✅ Using {len(fetched_clips)} dynamic clips")
-                clip_objs = []
+            if fetched_clips:
+                logger.info(f"✅ Using {len(fetched_clips)} dynamic clips")
                 
-                total_dur = 0
-                target_clip_dur = actual_duration / len(fetched_clips)
+                # 🚀 NUCLEAR OPTIMIZATION: Use FFmpeg for EVERYTHING
+                # This bypasses MoviePy's memory issues completely by doing all
+                # resizing, trimming, and concatenation in the CLI before Python loads anything.
+                bg_path = self.create_background_with_ffmpeg(fetched_clips, actual_duration)
                 
-                for i, clip_path in enumerate(fetched_clips):
-                    try:
-                        clip = VideoFileClip(clip_path)
-                        
-                        # ✅ FIXED: MoviePy 2.x syntax - 720p for Render Free Tier
-                        clip = clip.resized(height=1280)
-                        if clip.w < 720:
-                            clip = clip.resized(width=720)
-                        
-                        # ✅ FIXED: with_effects instead of fx
-                        clip = clip.with_effects([
-                            vfx.Crop(x1=int(clip.w/2 - 360), width=720, height=1280)
-                        ])
-                        
-                        if i == len(fetched_clips) - 1:
-                            dur = max(0, actual_duration - total_dur)
-                        else:
-                            dur = target_clip_dur
-                        
-                        if clip.duration < dur:
-                            clip = clip.with_effects([vfx.Loop(duration=dur)])
-                        else:
-                            clip = clip.subclipped(0, dur)
-                            
-                        clip_objs.append(clip)
-                        total_dur += dur
-                        
-                        # 🧹 Force GC after each clip to save RAM
-                        gc.collect()
-                        
-                    except Exception as e:
-                        logger.warning(f"⚠️ Clip {i} failed: {e}")
-                
-                if clip_objs:
-                    logger.info("🧩 Concatenating clips...")
-                    background = concatenate_videoclips(clip_objs, method="compose")
-                    del clip_objs  # Free the list reference
-                    gc.collect()   # Force cleanup
+                if bg_path:
+                    logger.info("✅ Loading optimized background video...")
+                    background = VideoFileClip(bg_path)
+                else:
+                    logger.warning("⚠️ FFmpeg background creation failed, falling back...")
+                    # Fallback logic could go here, but we rely on ColorClip fallback later
+            
+
             
             # Try 2: Assets folder video ONLY (no static images!)
             if background is None:
