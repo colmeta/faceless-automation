@@ -64,13 +64,18 @@ class YouTubeTranscriptFixer:
     def get_transcript(video_id: str) -> str:
         """Get transcript with fallback support"""
         try:
-            from youtube_transcript_api import YouTubeTranscriptApi
+            # ✅ FIXED: Robust Import
+            try:
+                from youtube_transcript_api import YouTubeTranscriptApi
+            except ImportError:
+                logger.error("❌ youtube_transcript_api not installed!")
+                return None
             
             logger.info(f"🔍 Fetching transcript for {video_id}...")
             
-            # ✅ FIXED: Direct static method call (this is the correct way)
             try:
                 # Try to get English transcript directly
+                # Note: Some versions might need instantiation, though it's usually static
                 captions = YouTubeTranscriptApi.get_transcript(video_id, languages=['en', 'en-US'])
                 full_text = " ".join([item['text'] for item in captions])
                 logger.info(f"✅ Transcript retrieved: {len(full_text)} chars")
