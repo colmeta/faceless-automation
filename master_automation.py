@@ -567,7 +567,7 @@ class VideoComposerFixed:
             from moviepy.video.VideoClip import ColorClip
             logger.info("🎬 Starting video creation...")
             
-            # STEP 1: Generate voice
+            # STEP 1: Generate Content (Avatar or Voice+B-roll)
             narration = script.get('narration', '')
             if not narration:
                 narration = f"{script['hook']}. {script.get('cta', 'Try it now')}."
@@ -575,57 +575,125 @@ class VideoComposerFixed:
             voice_path = "temp/voice.mp3"
             os.makedirs("temp", exist_ok=True)
             
-            logger.info(f"🔊 Generating voice: '{narration[:50]}...'")
+            background = None
+            audio = None
+            actual_duration = 0
             
-            # Try Edge-TTS with retry logic
-            edge_tts_success = False
-            for attempt in range(3):
+            # ---------------------------------------------------------
+            # 🤖 AVATAR GENERATION (Priority)
+            # ---------------------------------------------------------
+            if AVATAR_SYSTEM_AVAILABLE:
                 try:
-                    import edge_tts
+                    logger.info("🤖 Attempting Avatar Generation...")
+                    avatar_gen = AvatarGenerator()
                     
-                    async def generate_voice():
-                        voices = ["en-US-ChristopherNeural", "en-US-GuyNeural", "en-US-AriaNeural"]
-                        voice = voices[attempt % len(voices)]
+                    # Use the raw GitHub URL for the avatar image
+                    avatar_url = "https://raw.githubusercontent.com/colmeta/faceless-automation/main/ghgh.jpg"
+                    
+                    # Generate video
+                    avatar_result = avatar_gen.generate_video(narration, avatar_url, provider="d-id")
+                    
+                    if avatar_result and avatar_result.get('video_url'):
+                        video_url = avatar_result['video_url']
+                        logger.info(f"✅ Avatar video generated: {video_url}")
                         
-                        logger.info(f"🎤 Trying Edge-TTS with {voice} (attempt {attempt + 1}/3)")
-                        communicate = edge_tts.Communicate(narration, voice)
-                        await communicate.save(voice_path)
-                    
-                    # Run with timeout
-                    asyncio.wait_for(asyncio.run(generate_voice()), timeout=30)
-                    
-                    if os.path.exists(voice_path) and os.path.getsize(voice_path) > 1000:
-                        logger.info("✅ Edge-TTS generation successful")
-                        edge_tts_success = True
-                        break
-                    else:
-                        logger.warning(f"⚠️ Edge-TTS file too small or missing")
+                        # Download the video
+                        avatar_video_path = "temp/avatar_raw.mp4"
+                        logger.info(f"⬇️ Downloading avatar video...")
+                        response = requests.get(video_url, stream=True)
+                        response.raise_for_status()
                         
-                except asyncio.TimeoutError:
-                    logger.warning(f"⚠️ Edge-TTS timeout on attempt {attempt + 1}")
+                        with open(avatar_video_path, 'wb') as f:
+                            for chunk in response.iter_content(chunk_size=8192):
+                                f.write(chunk)
+                                
+                        if os.path.exists(avatar_video_path) and os.path.getsize(avatar_video_path) > 1000:
+                            logger.info("✅ Avatar video downloaded successfully")
+                            
+                            # Load as background
+                            background = VideoFileClip(avatar_video_path)
+                            audio = background.audio
+                            actual_duration = background.duration
+                            
+                            # Resize/Crop if needed (D-ID usually returns square or portrait)
+                            # We want 720x1280 (9:16)
+                            # If it's square, we might need to center it on a background or crop
+                            # For now, let's just resize/crop to fill
+                            if background.w != 720 or background.h != 1280:
+                                logger.info(f"📐 Resizing avatar video from {background.w}x{background.h} to 720x1280")
+                                # Simple resize to cover (might crop head) - better to fit width and center?
+                                # Let's try to fit width=720, then center vertically
+                                background = background.resized(width=720)
+                                if background.h < 1280:
+                                    # If too short, we need a background layer?
+                                    # Or just resize height to 1280 (might stretch)
+                                    # Or resize to fill height=1280 (might crop sides)
+                                    background = background.resized(height=1280)
+                                    background = background.with_effects([vfx.Crop(x1=int((background.w-720)/2), width=720, height=1280)])
+                                else:
+                                    # If too tall, crop center
+                                    background = background.with_effects([vfx.Crop(y1=int((background.h-1280)/2), width=720, height=1280)])
+                            
                 except Exception as e:
-                    logger.warning(f"⚠️ Edge-TTS failed (attempt {attempt + 1}): {e}")
-                    
-                if attempt < 2:
-                    import time
-                    time.sleep(1)  # Brief pause before retry
-            
-            # Fallback to gTTS if Edge-TTS failed
-            if not edge_tts_success:
-                logger.warning(f"⚠️ Edge-TTS failed after 3 attempts, falling back to gTTS...")
-                from gtts import gTTS
-                tts = gTTS(text=narration, lang='en', slow=False)
-                tts.save(voice_path)
-                logger.info("✅ gTTS generation successful (fallback)")
-            
-            # STEP 2: Get audio duration
-            audio = AudioFileClip(voice_path)
-            actual_duration = audio.duration
+                    logger.error(f"❌ Avatar generation failed: {e}")
+                    background = None
+                    audio = None
+
+            # ---------------------------------------------------------
+            # 🎤 FALLBACK: Voice Generation (if Avatar failed)
+            # ---------------------------------------------------------
+            if not audio:
+                logger.info(f"🔊 Generating voice (Fallback): '{narration[:50]}...'")
+                
+                # Try Edge-TTS with retry logic
+                edge_tts_success = False
+                for attempt in range(3):
+                    try:
+                        import edge_tts
+                        
+                        async def generate_voice():
+                            voices = ["en-US-ChristopherNeural", "en-US-GuyNeural", "en-US-AriaNeural"]
+                            voice = voices[attempt % len(voices)]
+                            
+                            logger.info(f"🎤 Trying Edge-TTS with {voice} (attempt {attempt + 1}/3)")
+                            communicate = edge_tts.Communicate(narration, voice)
+                            await communicate.save(voice_path)
+                        
+                        # Run with timeout
+                        asyncio.wait_for(asyncio.run(generate_voice()), timeout=30)
+                        
+                        if os.path.exists(voice_path) and os.path.getsize(voice_path) > 1000:
+                            logger.info("✅ Edge-TTS generation successful")
+                            edge_tts_success = True
+                            break
+                        else:
+                            logger.warning(f"⚠️ Edge-TTS file too small or missing")
+                            
+                    except asyncio.TimeoutError:
+                        logger.warning(f"⚠️ Edge-TTS timeout on attempt {attempt + 1}")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Edge-TTS failed (attempt {attempt + 1}): {e}")
+                        
+                    if attempt < 2:
+                        import time
+                        time.sleep(1)  # Brief pause before retry
+                
+                # Fallback to gTTS if Edge-TTS failed
+                if not edge_tts_success:
+                    logger.warning(f"⚠️ Edge-TTS failed after 3 attempts, falling back to gTTS...")
+                    from gtts import gTTS
+                    tts = gTTS(text=narration, lang='en', slow=False)
+                    tts.save(voice_path)
+                    logger.info("✅ gTTS generation successful (fallback)")
+                
+                # Get audio duration
+                audio = AudioFileClip(voice_path)
+                actual_duration = audio.duration
             
             logger.info(f"⏱️ Audio duration: {actual_duration:.2f} seconds")
             
-            # STEP 3: Create background (FIXED FALLBACK CHAIN)
-            background = None
+            # STEP 3: Create background (If not already created by Avatar)
+            if background is None:
             
             # Try 1: Dynamic B-roll
             topic = script.get('topic', 'technology')
