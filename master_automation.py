@@ -881,6 +881,151 @@ class VideoComposerFixed:
             import traceback
             traceback.print_exc()
             raise
+    
+    def generate_hybrid_video(self, script: dict, output_path: str, avatar_local_path: str = "ghgh.jpg") -> str:
+        """
+        🔥 HYBRID ENGINE: Avatar Intro + B-roll Body
+        Creates high-retention videos with:
+        1. Avatar Hook (5-10s) - builds trust with face
+        2. B-roll Body (remaining) - shows examples/product
+        """
+        try:
+            from moviepy import AudioFileClip, concatenate_videoclips, VideoFileClip
+            import subprocess
+            
+            logger.info("🔥 Starting HYBRID video generation (Avatar + B-roll)...")
+            os.makedirs("temp", exist_ok=True)
+            
+            # STEP 1: Upload Avatar to Cloudinary
+            avatar_url = None
+            if os.path.exists(avatar_local_path) and os.getenv('CLOUDINARY_CLOUD_NAME'):
+                try:
+                    import cloudinary
+                    import cloudinary.uploader
+                    cloudinary.config(
+                        cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'),
+                        api_key=os.getenv('CLOUDINARY_API_KEY'),
+                        api_secret=os.getenv('CLOUDINARY_API_SECRET')
+                    )
+                    logger.info(f"📤 Uploading {avatar_local_path} to Cloudinary...")
+                    result = cloudinary.uploader.upload(
+                        avatar_local_path,
+                        folder="avatars",
+                        public_id="user_avatar",
+                        overwrite=True,
+                        resource_type="image"
+                    )
+                    avatar_url = result['secure_url']
+                    logger.info(f"✅ Avatar uploaded: {avatar_url}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Avatar upload failed: {e}")
+            
+            if not avatar_url:
+                avatar_url = os.getenv("AVATAR_IMAGE_URL", "https://img.freepik.com/free-photo/portrait-man-laughing_23-2148859448.jpg")
+            
+            # STEP 2: Split Script
+            full_text = script.get('narration', '')
+            if not full_text:
+                full_text = f"{script.get('hook', 'Amazing')}. {script.get('cta', 'Try it')}."
+            
+            sentences = full_text.split('. ')
+            hook_text = '. '.join(sentences[:2]) + '.'
+            body_text = '. '.join(sentences[2:]) if len(sentences) > 2 else script.get('cta', 'Check it out')
+            
+            logger.info(f"📝 Hook: {hook_text[:50]}...")
+            logger.info(f"📝 Body: {body_text[:50]}...")
+            
+            # STEP 3: Generate Avatar Intro
+            avatar_video_path = None
+            if AVATAR_SYSTEM_AVAILABLE:
+                try:
+                    logger.info("🤖 Generating Avatar Intro...")
+                    avatar_gen = AvatarGenerator()
+                    avatar_result = avatar_gen.generate_video(hook_text, avatar_url, provider="d-id")
+                    
+                    if avatar_result and avatar_result.get('video_url'):
+                        avatar_video_path = "temp/avatar_intro.mp4"
+                        response = requests.get(avatar_result['video_url'], stream=True)
+                        response.raise_for_status()
+                        with open(avatar_video_path, 'wb') as f:
+                            for chunk in response.iter_content(chunk_size=8192):
+                                f.write(chunk)
+                        logger.info("✅ Avatar Intro downloaded")
+                except Exception as e:
+                    logger.warning(f"⚠️ Avatar Intro failed: {e}")
+            
+            # STEP 4: Generate B-roll Body
+            body_voice_path = "temp/body_voice.mp3"
+            try:
+                import edge_tts
+                async def gen_voice():
+                    communicate = edge_tts.Communicate(body_text, "en-US-GuyNeural")
+                    await communicate.save(body_voice_path)
+                asyncio.run(gen_voice())
+            except:
+                from gtts import gTTS
+                gTTS(text=body_text, lang='en', slow=False).save(body_voice_path)
+            
+            body_audio = AudioFileClip(body_voice_path)
+            body_duration = body_audio.duration
+            
+            topic = script.get('topic', 'technology')
+            broll_dir = "temp/broll_body"
+            os.makedirs(broll_dir, exist_ok=True)
+            num_clips = min(4, max(2, int(body_duration / 5)))
+            fetched_clips = self.broll_fetcher.fetch_broll_sequence(topic, num_clips, broll_dir)
+            
+            body_video_path = None
+            if fetched_clips:
+                bg_path = self.create_background_with_ffmpeg(fetched_clips, body_duration)
+                if bg_path:
+                    body_video_path = "temp/body_with_audio.mp4"
+                    cmd = ['ffmpeg', '-y', '-i', bg_path, '-i', body_voice_path,
+                           '-c:v', 'copy', '-c:a', 'aac', '-shortest', body_video_path]
+                    subprocess.run(cmd, check=True, capture_output=True)
+                    logger.info("✅ B-roll Body generated")
+            
+            # STEP 5: Concatenate
+            if avatar_video_path and body_video_path:
+                logger.info("🔗 Concatenating Avatar + B-roll...")
+                avatar_resized = "temp/avatar_resized.mp4"
+                resize_cmd = ['ffmpeg', '-y', '-i', avatar_video_path,
+                             '-vf', 'scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2,setsar=1',
+                             '-c:a', 'copy', avatar_resized]
+                subprocess.run(resize_cmd, check=True, capture_output=True)
+                
+                concat_list = "temp/hybrid_concat.txt"
+                with open(concat_list, 'w') as f:
+                    f.write(f"file '{os.path.abspath(avatar_resized).replace(chr(92), '/')}'\n")
+                    f.write(f"file '{os.path.abspath(body_video_path).replace(chr(92), '/')}'\n")
+                
+                concat_cmd = ['ffmpeg', '-y', '-f', 'concat', '-safe', '0',
+                             '-i', concat_list, '-c', 'copy', output_path]
+                subprocess.run(concat_cmd, check=True, capture_output=True)
+                logger.info(f"✅ HYBRID video created")
+                gc.collect()
+                return output_path
+            
+            # Fallbacks
+            elif avatar_video_path:
+                logger.warning("⚠️ Using Avatar-only")
+                import shutil
+                shutil.copy(avatar_video_path, output_path)
+                return output_path
+            elif body_video_path:
+                logger.warning("⚠️ Using B-roll-only")
+                import shutil
+                shutil.copy(body_video_path, output_path)
+                return output_path
+            else:
+                logger.error("❌ Hybrid failed, using fallback")
+                return self.generate_voice_and_video(script, output_path)
+        
+        except Exception as e:
+            logger.error(f"❌ Hybrid generation failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return self.generate_voice_and_video(script, output_path)
 
 # ==================== MASTER ORCHESTRATOR ====================
 class MasterOrchestrator:
@@ -970,34 +1115,9 @@ class MasterOrchestrator:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             output_path = f"faceless_empire/videos/video_{timestamp}.mp4"
             
-            video_generated = False
-            
-            # Try Avatar Generation First
-            if self.avatar_generator:
-                logger.info("🤖 Attempting AI Avatar generation...")
-                # Use a default avatar URL or one from env
-                avatar_url = os.getenv("AVATAR_IMAGE_URL", "https://img.freepik.com/free-photo/portrait-man-laughing_23-2148859448.jpg")
-                
-                avatar_result = self.avatar_generator.generate_video(
-                    script=script['narration'],
-                    avatar_url=avatar_url
-                )
-                
-                if avatar_result and avatar_result.get('video_url'):
-                    logger.info(f"✅ Avatar video generated: {avatar_result['video_url']}")
-                    # Download the video to output_path
-                    try:
-                        v_response = requests.get(avatar_result['video_url'])
-                        with open(output_path, 'wb') as f:
-                            f.write(v_response.content)
-                        video_generated = True
-                    except Exception as e:
-                        logger.error(f"❌ Failed to download avatar video: {e}")
-            
-            if not video_generated:
-                logger.info("🎬 Falling back to Faceless Video generation...")
-                self.video_composer.generate_voice_and_video(script, output_path)
-
+            # ✅ USE HYBRID ENGINE (Avatar Intro + B-roll Body)
+            logger.info("🔥 Using HYBRID generation (Avatar Intro + B-roll Body)...")
+            self.video_composer.generate_hybrid_video(script, output_path)
             
             logger.info("✅ Video generated successfully")
             
