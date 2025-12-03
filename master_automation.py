@@ -695,98 +695,98 @@ class VideoComposerFixed:
             # STEP 3: Create background (If not already created by Avatar)
             if background is None:
             
-            # Try 1: Dynamic B-roll
-            topic = script.get('topic', 'technology')
-            broll_dir = "temp/broll_seq"
-            os.makedirs(broll_dir, exist_ok=True)
+                # Try 1: Dynamic B-roll
+                topic = script.get('topic', 'technology')
+                broll_dir = "temp/broll_seq"
+                os.makedirs(broll_dir, exist_ok=True)
             
-            # 🧠 MEMORY OPTIMIZATION: Cap max clips to 6 for Render Free Tier
-            # Previous logic (duration/4) could request 15+ clips for 60s video -> OOM
-            num_clips = min(6, max(3, int(actual_duration / 5)))
+                # 🧠 MEMORY OPTIMIZATION: Cap max clips to 6 for Render Free Tier
+                # Previous logic (duration/4) could request 15+ clips for 60s video -> OOM
+                num_clips = min(6, max(3, int(actual_duration / 5)))
             
-            logger.info(f"🎞️ Fetching {num_clips} clips for: {topic}")
-            fetched_clips = self.broll_fetcher.fetch_broll_sequence(topic, num_clips, broll_dir)
+                logger.info(f"🎞️ Fetching {num_clips} clips for: {topic}")
+                fetched_clips = self.broll_fetcher.fetch_broll_sequence(topic, num_clips, broll_dir)
             
-            if fetched_clips:
-                logger.info(f"✅ Using {len(fetched_clips)} dynamic clips")
-            if fetched_clips:
-                logger.info(f"✅ Using {len(fetched_clips)} dynamic clips")
+                if fetched_clips:
+                    logger.info(f"✅ Using {len(fetched_clips)} dynamic clips")
+                if fetched_clips:
+                    logger.info(f"✅ Using {len(fetched_clips)} dynamic clips")
                 
-                # 🚀 NUCLEAR OPTIMIZATION: Use FFmpeg for EVERYTHING
-                # This bypasses MoviePy's memory issues completely by doing all
-                # resizing, trimming, and concatenation in the CLI before Python loads anything.
-                bg_path = self.create_background_with_ffmpeg(fetched_clips, actual_duration)
+                    # 🚀 NUCLEAR OPTIMIZATION: Use FFmpeg for EVERYTHING
+                    # This bypasses MoviePy's memory issues completely by doing all
+                    # resizing, trimming, and concatenation in the CLI before Python loads anything.
+                    bg_path = self.create_background_with_ffmpeg(fetched_clips, actual_duration)
                 
-                if bg_path:
-                    logger.info("✅ Loading optimized background video...")
-                    background = VideoFileClip(bg_path)
-                else:
-                    logger.warning("⚠️ FFmpeg background creation failed, falling back...")
-                    # Fallback logic could go here, but we rely on ColorClip fallback later
+                    if bg_path:
+                        logger.info("✅ Loading optimized background video...")
+                        background = VideoFileClip(bg_path)
+                    else:
+                        logger.warning("⚠️ FFmpeg background creation failed, falling back...")
+                        # Fallback logic could go here, but we rely on ColorClip fallback later
             
 
             
-            # Try 2: Assets folder video ONLY (no static images!)
-            if background is None:
-                local_bg = "assets/background.mp4"
-                if os.path.exists(local_bg):
-                    logger.info(f"📂 Using assets/background.mp4")
-                    video_clip = VideoFileClip(local_bg)
+                # Try 2: Assets folder video ONLY (no static images!)
+                if background is None:
+                    local_bg = "assets/background.mp4"
+                    if os.path.exists(local_bg):
+                        logger.info(f"📂 Using assets/background.mp4")
+                        video_clip = VideoFileClip(local_bg)
                     
-                    if video_clip.duration < actual_duration:
-                        video_clip = video_clip.with_effects([vfx.Loop(duration=actual_duration)])
-                    else:
-                        video_clip = video_clip.subclipped(0, actual_duration)
+                        if video_clip.duration < actual_duration:
+                            video_clip = video_clip.with_effects([vfx.Loop(duration=actual_duration)])
+                        else:
+                            video_clip = video_clip.subclipped(0, actual_duration)
                     
-                    background = video_clip.resized(height=1280)
-                    if background.w < 720:
-                        background = background.resized(width=720)
+                        background = video_clip.resized(height=1280)
+                        if background.w < 720:
+                            background = background.resized(width=720)
                     
-                    background = background.with_effects([
-                        vfx.Crop(x1=int(background.w/2 - 360), width=720, height=1280)
-                    ])
+                        background = background.with_effects([
+                            vfx.Crop(x1=int(background.w/2 - 360), width=720, height=1280)
+                        ])
             
-            # ⛔ REMOVED: Static image fallback - we want REAL videos only!
-            # Assets folder images are now DISABLED to force dynamic content
+                # ⛔ REMOVED: Static image fallback - we want REAL videos only!
+                # Assets folder images are now DISABLED to force dynamic content
             
-            # Try 4: ColorClip with VARIED colors (ONLY if all B-roll attempts failed)
-            if background is None:
-                logger.error("❌ ========================================")
-                logger.error("❌ CRITICAL: B-ROLL FETCH COMPLETELY FAILED")
-                logger.error(f"❌ Pexels API Key available: {bool(self.broll_fetcher.pexels_key)}")
-                logger.error(f"❌ Pixabay API Key available: {bool(self.broll_fetcher.pixabay_key)}")
-                logger.error(f"❌ Requested clips: {num_clips}")
-                logger.error(f"❌ Fetched clips: {len(fetched_clips) if fetched_clips else 0}")
-                logger.error("❌ Falling back to ColorClip (NOT IDEAL)")
-                logger.error("❌ ========================================")
+                # Try 4: ColorClip with VARIED colors (ONLY if all B-roll attempts failed)
+                if background is None:
+                    logger.error("❌ ========================================")
+                    logger.error("❌ CRITICAL: B-ROLL FETCH COMPLETELY FAILED")
+                    logger.error(f"❌ Pexels API Key available: {bool(self.broll_fetcher.pexels_key)}")
+                    logger.error(f"❌ Pixabay API Key available: {bool(self.broll_fetcher.pixabay_key)}")
+                    logger.error(f"❌ Requested clips: {num_clips}")
+                    logger.error(f"❌ Fetched clips: {len(fetched_clips) if fetched_clips else 0}")
+                    logger.error("❌ Falling back to ColorClip (NOT IDEAL)")
+                    logger.error("❌ ========================================")
                 
-                logger.warning("⚠️ Using ColorClip with varied colors")
+                    logger.warning("⚠️ Using ColorClip with varied colors")
                 
-                # Get varied color based on timestamp
-                base_colors = [
-                    (20, 20, 60),   # Dark blue
-                    (60, 20, 60),   # Purple  
-                    (20, 60, 60),   # Teal
-                    (60, 30, 20),   # Brown/Orange
-                    (20, 40, 60),   # Medium blue
-                    (40, 20, 50),   # Deep purple
-                    (10, 50, 40),   # Dark green
-                    (70, 20, 30),   # Dark red
-                    (30, 30, 70),   # Bright blue
-                    (50, 40, 10),   # Gold
-                ]
+                    # Get varied color based on timestamp
+                    base_colors = [
+                        (20, 20, 60),   # Dark blue
+                        (60, 20, 60),   # Purple  
+                        (20, 60, 60),   # Teal
+                        (60, 30, 20),   # Brown/Orange
+                        (20, 40, 60),   # Medium blue
+                        (40, 20, 50),   # Deep purple
+                        (10, 50, 40),   # Dark green
+                        (70, 20, 30),   # Dark red
+                        (30, 30, 70),   # Bright blue
+                        (50, 40, 10),   # Gold
+                    ]
                 
-                # Use timestamp to select color (different each run)
-                seed = int(datetime.now().strftime("%H%M%S"))
-                color = base_colors[seed % len(base_colors)]
+                    # Use timestamp to select color (different each run)
+                    seed = int(datetime.now().strftime("%H%M%S"))
+                    color = base_colors[seed % len(base_colors)]
                 
-                logger.info(f"🎨 Using color scheme: RGB{color}")
+                    logger.info(f"🎨 Using color scheme: RGB{color}")
                 
-                background = ColorClip(
-                    size=(720, 1280),
-                    color=color,
-                    duration=actual_duration
-                )
+                    background = ColorClip(
+                        size=(720, 1280),
+                        color=color,
+                        duration=actual_duration
+                    )
             
             # STEP 4: Add hook text (FIXED)
             try:
