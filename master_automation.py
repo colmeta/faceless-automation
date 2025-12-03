@@ -20,6 +20,12 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional, List
 import io
+try:
+    from avatar_automation_system import AvatarGenerator
+    AVATAR_SYSTEM_AVAILABLE = True
+except ImportError:
+    logger.warning("⚠️ Avatar system not found, skipping")
+    AVATAR_SYSTEM_AVAILABLE = False
 
 # Fix Windows console encoding for emojis
 if sys.platform == 'win32':
@@ -824,6 +830,13 @@ class MasterOrchestrator:
             logger.warning(f"⚠️ YouTube Uploader not available: {e}")
             self.youtube_uploader = None
         
+        # Initialize Avatar Generator
+        if AVATAR_SYSTEM_AVAILABLE:
+            self.avatar_generator = AvatarGenerator()
+            logger.info("✅ Avatar Generator initialized")
+        else:
+            self.avatar_generator = None
+        
         logger.info("✅ Master Orchestrator initialized")
     
     def run_daily_automation(self):
@@ -884,7 +897,34 @@ class MasterOrchestrator:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             output_path = f"faceless_empire/videos/video_{timestamp}.mp4"
             
-            self.video_composer.generate_voice_and_video(script, output_path)
+            video_generated = False
+            
+            # Try Avatar Generation First
+            if self.avatar_generator:
+                logger.info("🤖 Attempting AI Avatar generation...")
+                # Use a default avatar URL or one from env
+                avatar_url = os.getenv("AVATAR_IMAGE_URL", "https://img.freepik.com/free-photo/portrait-man-laughing_23-2148859448.jpg")
+                
+                avatar_result = self.avatar_generator.generate_video(
+                    script=script['narration'],
+                    avatar_url=avatar_url
+                )
+                
+                if avatar_result and avatar_result.get('video_url'):
+                    logger.info(f"✅ Avatar video generated: {avatar_result['video_url']}")
+                    # Download the video to output_path
+                    try:
+                        v_response = requests.get(avatar_result['video_url'])
+                        with open(output_path, 'wb') as f:
+                            f.write(v_response.content)
+                        video_generated = True
+                    except Exception as e:
+                        logger.error(f"❌ Failed to download avatar video: {e}")
+            
+            if not video_generated:
+                logger.info("🎬 Falling back to Faceless Video generation...")
+                self.video_composer.generate_voice_and_video(script, output_path)
+
             
             logger.info("✅ Video generated successfully")
             
