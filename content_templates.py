@@ -256,6 +256,107 @@ def get_timestamp_color_scheme(timestamp: str) -> List[tuple]:
     random.seed()
     return scheme
 
+def get_broll_query(topic: Dict) -> str:
+    """
+    Get varied b-roll search query for a topic
+    Returns different search terms each time for the same topic
+    """
+    # Expanded b-roll queries per topic
+    BROLL_QUERIES = {
+        "AI Automation": [
+            "artificial intelligence technology",
+            "AI coding programming",
+            "machine learning data",
+            "automation workflow",
+            "futuristic technology",
+            "digital transformation"
+        ],
+        "Productivity": [
+            "productive workspace setup",
+            "time management planning",
+            "organized desk office",
+            "focused work environment",
+            "professional workspace",
+            "business productivity"
+        ],
+        "Business Growth": [
+            "startup office teamwork",
+            "business meeting strategy",
+            "entrepreneur working laptop",
+            "corporate growth success",
+            "business analytics data",
+            "team collaboration office"
+        ],
+        "Tech Trends": [
+            "innovative technology future",
+            "digital innovation screen",
+            "technology trends modern",
+            "futuristic interface",
+            "tech startup workspace",
+            "modern technology devices"
+        ],
+        "Side Hustles": [
+            "side hustle laptop",
+            "freelance work home",
+            "online business computer",
+            "entrepreneur working remotely",
+            "digital nomad workspace",
+            "passive income laptop"
+        ],
+        "Digital Marketing": [
+            "social media marketing",
+            "content creation filming",
+            "digital advertising screen",
+            "marketing analytics data",
+            "influencer content creation",
+            "brand marketing design"
+        ],
+        "Online Income": [
+            "making money online",
+            "ecommerce business",
+            "online entrepreneur laptop",
+            "digital business growth",
+            "internet marketing",
+            "online revenue analytics"
+        ],
+        "Software Tools": [
+            "software development coding",
+            "digital tools interface",
+            "app development screen",
+            "technology software design",
+            "productivity apps phone",
+            "modern software platform"
+        ],
+        "Work From Home": [
+            "remote work home office",
+            "home workspace setup",
+            "telecommuting laptop",
+            "digital nomad lifestyle",
+            "flexible work environment",
+            "cozy home office"
+        ],
+        "Creator Economy": [
+            "content creator filming",
+            "influencer recording video",
+            "video production studio",
+            "creator workspace setup",
+            "social media content",
+            "monetization creator"
+        ]
+    }
+    
+    topic_name = topic.get("name", "")
+    
+    # Get queries for this topic
+    queries = BROLL_QUERIES.get(topic_name, [
+        "business technology",
+        "modern workspace",
+        "digital innovation"
+    ])
+    
+    # Return random query
+    return random.choice(queries)
+
 # ==================== MAIN TEST ====================
 if __name__ == "__main__":
     print("🎨 Content Templates Test\n")
