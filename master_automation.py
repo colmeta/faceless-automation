@@ -27,6 +27,20 @@ except ImportError:
     logger.warning("⚠️ Avatar system not found, skipping")
     AVATAR_SYSTEM_AVAILABLE = False
 
+try:
+    from avatar_variation_manager import AvatarVariationManager
+    AVATAR_VARIATION_AVAILABLE = True
+except ImportError:
+    logger.warning("⚠️ Avatar variation manager not found")
+    AVATAR_VARIATION_AVAILABLE = False
+
+try:
+    from youtube_seo_manager import YouTubeSEOManager
+    SEO_MANAGER_AVAILABLE = True
+except ImportError:
+    logger.warning("⚠️ YouTube SEO manager not found")
+    SEO_MANAGER_AVAILABLE = False
+
 # Fix Windows console encoding for emojis
 if sys.platform == 'win32':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
@@ -896,8 +910,25 @@ class VideoComposerFixed:
             logger.info("🔥 Starting HYBRID video generation (Avatar + B-roll)...")
             os.makedirs("temp", exist_ok=True)
             
-            # STEP 1: Upload Avatar to Cloudinary
+            # STEP 1: Get Avatar Image (with variation)
             avatar_url = None
+            avatar_local_path = None
+            
+            # Try Avatar Variation Manager first
+            if AVATAR_VARIATION_AVAILABLE:
+                try:
+                    avatar_mgr = AvatarVariationManager()
+                    if avatar_mgr.has_avatars():
+                        avatar_local_path = avatar_mgr.get_next_avatar()
+                        logger.info(f"🎭 Selected varied avatar: {os.path.basename(avatar_local_path)}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Avatar variation failed: {e}")
+            
+            # Fallback to default avatar
+            if not avatar_local_path:
+                avatar_local_path = "ghgh.jpg"
+            
+            # Upload to Cloudinary
             if os.path.exists(avatar_local_path) and os.getenv('CLOUDINARY_CLOUD_NAME'):
                 try:
                     import cloudinary
@@ -911,7 +942,7 @@ class VideoComposerFixed:
                     result = cloudinary.uploader.upload(
                         avatar_local_path,
                         folder="avatars",
-                        public_id="user_avatar",
+                        public_id=f"user_avatar_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
                         overwrite=True,
                         resource_type="image"
                     )
@@ -1055,6 +1086,13 @@ class MasterOrchestrator:
         else:
             self.avatar_generator = None
         
+        # Initialize SEO Manager
+        if SEO_MANAGER_AVAILABLE:
+            self.seo_manager = YouTubeSEOManager()
+            logger.info("✅ YouTube SEO Manager initialized")
+        else:
+            self.seo_manager = None
+        
         logger.info("✅ Master Orchestrator initialized")
     
     def run_daily_automation(self):
@@ -1156,14 +1194,32 @@ class MasterOrchestrator:
             
             if self.youtube_uploader:
                 try:
+                    # Generate SEO-optimized metadata
+                    if self.seo_manager:
+                        video_title = self.seo_manager.get_video_title(analysis['short_hook'])
+                        video_description = self.seo_manager.generate_video_description(
+                            hook=analysis['short_hook'],
+                            topic=analysis['key_topics'],
+                            tool_name=analysis.get('affiliate_angle', 'AI Tools')
+                        )
+                        hashtags_str = ' '.join(self.seo_manager.get_optimized_hashtags(analysis['key_topics']))
+                        logger.info(f"🎯 SEO metadata generated (Title: {video_title[:50]}...)")                    else:
+                        # Fallback if SEO manager not available
+                        video_title = f"{analysis['short_hook']} #Shorts"
+                        video_description = f"{analysis['summary']}
+
+#AITools #Productivity"
+                        hashtags_str = "#AITools #Shorts"
+                    
+                    # Upload with full metadata
                     hashtags = [tag.strip() for tag in analysis['key_topics'].split(',')]
                     
                     upload_result = self.youtube_uploader.upload_shorts_optimized(
                         video_path=output_path,
-                        hook=analysis['short_hook'],
+                        hook=video_title,
                         topic=analysis['key_topics'],
                         hashtags=hashtags,
-                        affiliate_link='https://example.com'
+                        affiliate_link=video_description  # Pass full description
                     )
                     
                     youtube_url = upload_result['url']

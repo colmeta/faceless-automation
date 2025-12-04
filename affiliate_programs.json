@@ -1,0 +1,101 @@
+{
+    "programs": [
+        {
+            "name": "Synthesys AI",
+            "url": "https://synthesys.io?fpr=collin80",
+            "commission": "40% lifetime recurring",
+            "churn_rate": "10%",
+            "category": [
+                "video",
+                "ai",
+                "content_creation",
+                "avatars"
+            ],
+            "hook": "Create stunning AI videos in minutes",
+            "priority": 1,
+            "notes": "✅ ACTIVE - Your money maker! Perfect match for avatar content."
+        },
+        {
+            "name": "Writesonic",
+            "url": "https://writesonic.com/?via=REPLACE_WITH_YOUR_REF",
+            "commission": "30% recurring",
+            "category": [
+                "writing",
+                "content",
+                "ai",
+                "seo"
+            ],
+            "hook": "AI writing that saves hours daily",
+            "priority": 1,
+            "notes": "Individual-friendly, instant approval"
+        },
+        {
+            "name": "Copy.ai",
+            "url": "https://copy.ai/?via=REPLACE_WITH_YOUR_REF",
+            "commission": "45% first year",
+            "category": [
+                "copywriting",
+                "marketing",
+                "ai"
+            ],
+            "hook": "Generate high-converting copy instantly",
+            "priority": 1,
+            "notes": "No website required, 60-day cookie"
+        },
+        {
+            "name": "Murf AI",
+            "url": "https://murf.ai/?lmref=REPLACE_WITH_YOUR_REF",
+            "commission": "20% for 24 months",
+            "category": [
+                "voiceover",
+                "audio",
+                "ai",
+                "video"
+            ],
+            "hook": "Studio-quality AI voiceovers",
+            "priority": 2,
+            "notes": "90-day cookie, great for creators"
+        },
+        {
+            "name": "Pictory AI",
+            "url": "https://pictory.ai/?ref=REPLACE_WITH_YOUR_REF",
+            "commission": "30% recurring",
+            "category": [
+                "video",
+                "ai",
+                "editing"
+            ],
+            "hook": "Turn text into engaging videos",
+            "priority": 2,
+            "notes": "Complements Synthesys perfectly"
+        },
+        {
+            "name": "Descript",
+            "url": "https://www.descript.com/?lmref=REPLACE_WITH_YOUR_REF",
+            "commission": "25% recurring",
+            "category": [
+                "video",
+                "audio",
+                "editing"
+            ],
+            "hook": "Edit videos like editing a doc",
+            "priority": 3,
+            "notes": "Popular with YouTubers"
+        }
+    ],
+    "_instructions": {
+        "setup": "Replace all REPLACE_WITH_YOUR_REF with your actual affiliate IDs",
+        "registration_links": {
+            "Writesonic": "https://writesonic.com/affiliate",
+            "Copy.ai": "https://www.copy.ai/affiliates",
+            "Murf": "https://murf.ai/affiliate-program",
+            "Pictory": "https://pictory.ai/affiliates",
+            "Descript": "https://www.descript.com/affiliates"
+        },
+        "priority_meaning": {
+            "1": "Use in most videos - highest ROI",
+            "2": "Rotate regularly - good performers",
+            "3": "Niche topics only"
+        }
+    }
+}

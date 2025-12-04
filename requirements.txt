@@ -2,7 +2,7 @@
 google-generativeai
 anthropic
 openai
-youtube-transcript-api>=0.6.0
+youtube-transcript-api==0.6.2
 google-api-python-client
 google-auth-oauthlib
 google-auth-httplib2
