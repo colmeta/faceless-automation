@@ -1201,12 +1201,11 @@ class MasterOrchestrator:
                             tool_name=analysis.get('affiliate_angle', 'AI Tools')
                         )
                         hashtags_str = ' '.join(self.seo_manager.get_optimized_hashtags(analysis['key_topics']))
-                        logger.info(f"🎯 SEO metadata generated (Title: {video_title[:50]}...)")                    else:
+                        logger.info(f"🎯 SEO metadata generated (Title: {video_title[:50]}...)")
+                    else:
                         # Fallback if SEO manager not available
                         video_title = f"{analysis['short_hook']} #Shorts"
-                        video_description = f"{analysis['summary']}
-
-#AITools #Productivity"
+                        video_description = f"{analysis['summary']}\n\n#AITools #Productivity"
                         hashtags_str = "#AITools #Shorts"
                     
                     # Upload with full metadata
