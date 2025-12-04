@@ -76,49 +76,36 @@ class YouTubeTranscriptFixer:
     
     @staticmethod
     def get_transcript(video_id: str) -> str:
-        """Get transcript with fallback support"""
+        """Get transcript with working implementation"""
         try:
-            # ✅ FIXED: Robust Import
-            try:
-                from youtube_transcript_api import YouTubeTranscriptApi
-            except ImportError:
-                logger.error("❌ youtube_transcript_api not installed!")
-                return None
+            # Import inside the method
+            from youtube_transcript_api import YouTubeTranscriptApi
             
             logger.info(f"🔍 Fetching transcript for {video_id}...")
             
             try:
-                # Try to get English transcript directly
-                # Note: Some versions might need instantiation, though it's usually static
-                captions = YouTubeTranscriptApi.get_transcript(video_id, languages=['en', 'en-US'])
+                # Direct call - this is the correct way for version 0.6.2
+                transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+                
+                # Try English first
+                try:
+                    transcript = transcript_list.find_transcript(['en', 'en-US'])
+                except:
+                    # Use first available
+                    transcript = next(iter(transcript_list))
+                
+                captions = transcript.fetch()
                 full_text = " ".join([item['text'] for item in captions])
                 logger.info(f"✅ Transcript retrieved: {len(full_text)} chars")
                 return full_text
                 
             except Exception as e:
-                logger.warning(f"⚠️ English transcript failed, trying list_transcripts: {e}")
-                
-                # Try to get any available transcript
-                try:
-                    transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-                    
-                    # Try to find English first
-                    try:
-                        transcript = transcript_list.find_transcript(['en'])
-                    except:
-                        # Get first available transcript
-                        transcript = next(iter(transcript_list))
-                        logger.info(f"Using transcript language: {transcript.language}")
-                    
-                    captions = transcript.fetch()
-                    full_text = " ".join([item['text'] for item in captions])
-                    logger.info(f"✅ Transcript retrieved: {len(full_text)} chars")
-                    return full_text
-                    
-                except Exception as e2:
-                    logger.error(f"❌ All transcript methods failed: {e2}")
-                    return None
+                logger.warning(f"⚠️ Transcript fetch failed: {e}")
+                return None
         
+        except ImportError:
+            logger.error("❌ youtube_transcript_api not installed")
+            return None
         except Exception as e:
             logger.error(f"❌ Transcript error: {e}")
             return None
@@ -518,14 +505,13 @@ class VideoComposerFixed:
                 else:
                     duration = target_duration
                 
-                # FFmpeg command: Resize -> Crop -> Trim
-                # scale=-1:1280 (height 1280, keep aspect)
-                # crop=720:1280 (center crop)
-                # -t {duration} (trim length)
+                # FFmpeg command: Robust scaling that handles any dimensions
+                # force_original_aspect_ratio=decrease ensures video fits within 720x1280
+                # pad adds black bars if needed to reach exact 720x1280
                 cmd = [
                     'ffmpeg', '-y',
                     '-i', clip_path,
-                    '-vf', f'scale=-1:1280,crop=720:1280:(iw-720)/2:0,setsar=1',
+                    '-vf', f'scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2:black,setsar=1',
                     '-t', str(duration),
                     '-c:v', 'libx264',
                     '-preset', 'ultrafast',
@@ -535,7 +521,19 @@ class VideoComposerFixed:
                 ]
                 
                 logger.info(f"🎞️ Processing clip {i+1}/{len(clips_paths)} via FFmpeg...")
-                subprocess.run(cmd, check=True, capture_output=True)
+                result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+                
+                if result.returncode != 0:
+                    logger.warning(f"⚠️ Clip {i+1} resize failed, trying simpler method...")
+                    # Fallback: just scale without cropping
+                    cmd_simple = [
+                        'ffmpeg', '-y', '-i', clip_path,
+                        '-vf', f'scale=720:1280,setsar=1',
+                        '-t', str(duration),
+                        '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28', '-an',
+                        output_path
+                    ]
+                    subprocess.run(cmd_simple, check=True, capture_output=True)
                 
                 if os.path.exists(output_path):
                     processed_clips.append(output_path)
