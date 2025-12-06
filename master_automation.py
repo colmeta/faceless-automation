@@ -735,7 +735,59 @@ class MasterOrchestrator:
             self.video_composer.generate_voice_and_video(script, output_path)
             
             logger.info("✅ Video generated successfully")
-            
+
+            # ==================== AI THUMBNAIL GENERATION ====================
+thumbnail_path = None
+try:
+    from thumbnail_ai_generator import AIThumbnailGenerator
+    
+    logger.info("\n🎨 Generating AI thumbnail...")
+    thumbnail_gen = AIThumbnailGenerator()
+    
+    # Create thumbnails directory
+    thumb_dir = "faceless_empire/thumbnails"
+    os.makedirs(thumb_dir, exist_ok=True)
+    
+    # Generate thumbnail filename
+    thumb_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    thumbnail_path = f"{thumb_dir}/thumb_{thumb_timestamp}.jpg"
+    
+    # Auto-detect style from hook
+    hook_lower = script['hook'].lower()
+    if any(word in hook_lower for word in ['amazing', 'insane', 'crazy', 'shocking']):
+        style = 'shock'
+    elif any(word in hook_lower for word in ['professional', 'business', 'corporate']):
+        style = 'professional'
+    elif any(word in hook_lower for word in ['simple', 'clean', 'minimal']):
+        style = 'minimal'
+    else:
+        style = 'viral'  # Default
+    
+    # Generate thumbnail
+    thumbnail_path = thumbnail_gen.generate_thumbnail(
+        hook=script['hook'],
+        topic=script.get('topic', 'AI technology'),
+        output_path=thumbnail_path,
+        style=style
+    )
+    
+    if thumbnail_path and os.path.exists(thumbnail_path):
+        logger.info(f"✅ AI Thumbnail generated: {thumbnail_path}")
+        logger.info(f"   Style: {style}")
+    else:
+        logger.warning("⚠️ Thumbnail generation returned None")
+        thumbnail_path = None
+    
+except ImportError:
+    logger.warning("⚠️ thumbnail_ai_generator.py not found - skipping thumbnails")
+    thumbnail_path = None
+except Exception as e:
+    logger.error(f"❌ Thumbnail generation error: {e}")
+    import traceback
+    traceback.print_exc()
+    thumbnail_path = None
+# ==================== END THUMBNAIL GENERATION ====================
+    
             # PHASE 3: Upload to YouTube
             logger.info("\n📍 PHASE 3: YouTube upload...")
             youtube_url = None
