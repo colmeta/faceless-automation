@@ -849,40 +849,40 @@ class MasterOrchestrator:
             # ==================== AI THUMBNAIL GENERATION ====================
             thumbnail_path = None
             try:
-            logger.info("\n🎨 Generating VIRAL thumbnail...")
-            thumbnail_gen = ViralThumbnailGenerator()
+                logger.info("\n🎨 Generating VIRAL thumbnail...")
+                thumbnail_gen = ViralThumbnailGenerator()
     
-            thumb_dir = "faceless_empire/thumbnails"
-            os.makedirs(thumb_dir, exist_ok=True)
+                thumb_dir = "faceless_empire/thumbnails"
+                os.makedirs(thumb_dir, exist_ok=True)
     
-            thumb_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            thumbnail_path = f"{thumb_dir}/thumb_{thumb_timestamp}.jpg"
+                thumb_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                thumbnail_path = f"{thumb_dir}/thumb_{thumb_timestamp}.jpg"
     
-            # Auto-detect emotion from hook
-            hook_lower = script['hook'].lower()
-            if any(word in hook_lower for word in ['money', 'cash', 'profit', 'earn']):
-                emotion = 'money'
-            elif any(word in hook_lower for word in ['insane', 'crazy', 'shocking', 'unbelievable']):
-                emotion = 'shock'
-            elif any(word in hook_lower for word in ['new', 'trending', 'hot', 'viral']):
-                emotion = 'viral'
-            else:
-                emotion = 'attention'
+                # Auto-detect emotion from hook
+                hook_lower = script['hook'].lower()
+                if any(word in hook_lower for word in ['money', 'cash', 'profit', 'earn']):
+                    emotion = 'money'
+                elif any(word in hook_lower for word in ['insane', 'crazy', 'shocking', 'unbelievable']):
+                    emotion = 'shock'
+                elif any(word in hook_lower for word in ['new', 'trending', 'hot', 'viral']):
+                    emotion = 'viral'
+                else:
+                    emotion = 'attention'
     
-                thumbnail_path = thumbnail_gen.generate_viral_thumbnail(
-                hook=script['hook'][:30],  # 3-5 words max
-                topic=script.get('topic', 'AI tools'),
-                output_path=thumbnail_path,
-                emotion=emotion
-                )
+                    thumbnail_path = thumbnail_gen.generate_viral_thumbnail(
+                    hook=script['hook'][:30],  # 3-5 words max
+                    topic=script.get('topic', 'AI tools'),
+                    output_path=thumbnail_path,
+                    emotion=emotion
+                    )
     
-                logger.info(f"✅ VIRAL thumbnail: {thumbnail_path}")
+                    logger.info(f"✅ VIRAL thumbnail: {thumbnail_path}")
     
-                except Exception as e:
-                logger.error(f"❌ Thumbnail error: {e}") 
-                import traceback
-                traceback.print_exc()
-                thumbnail_path = None
+                    except Exception as e:
+                    logger.error(f"❌ Thumbnail error: {e}") 
+                    import traceback
+                    traceback.print_exc()
+                    thumbnail_path = None
             # ==================== END THUMBNAIL GENERATION ====================
             
             # PHASE 3: Upload to YouTube
