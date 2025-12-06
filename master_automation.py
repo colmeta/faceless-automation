@@ -878,7 +878,7 @@ class MasterOrchestrator:
     
                     logger.info(f"✅ VIRAL thumbnail: {thumbnail_path}")
     
-                    except Exception as e:
+                except Exception as e:
                     logger.error(f"❌ Thumbnail error: {e}") 
                     import traceback
                     traceback.print_exc()
