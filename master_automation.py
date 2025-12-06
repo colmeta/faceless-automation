@@ -848,51 +848,38 @@ class MasterOrchestrator:
             
             # ==================== AI THUMBNAIL GENERATION ====================
             thumbnail_path = None
-            try:
-                from thumbnail_ai_generator import AIThumbnailGenerator
-                
-                logger.info("\n🎨 Generating AI thumbnail...")
-                thumbnail_gen = AIThumbnailGenerator()
-                
-                # Create thumbnails directory
-                thumb_dir = "faceless_empire/thumbnails"
-                os.makedirs(thumb_dir, exist_ok=True)
-                
-                # Generate thumbnail filename
-                thumb_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                thumbnail_path = f"{thumb_dir}/thumb_{thumb_timestamp}.jpg"
-                
-                # Auto-detect style from hook
-                hook_lower = script['hook'].lower()
-                if any(word in hook_lower for word in ['amazing', 'insane', 'crazy', 'shocking']):
-                    style = 'shock'
-                elif any(word in hook_lower for word in ['professional', 'business', 'corporate']):
-                    style = 'professional'
-                elif any(word in hook_lower for word in ['simple', 'clean', 'minimal']):
-                    style = 'minimal'
-                else:
-                    style = 'viral'  # Default
-                
-                # Generate thumbnail
-                thumbnail_path = thumbnail_gen.generate_thumbnail(
-                    hook=script['hook'],
-                    topic=script.get('topic', 'AI technology'),
-                    output_path=thumbnail_path,
-                    style=style
+        try:
+            logger.info("\n🎨 Generating VIRAL thumbnail...")
+            thumbnail_gen = ViralThumbnailGenerator()
+    
+            thumb_dir = "faceless_empire/thumbnails"
+            os.makedirs(thumb_dir, exist_ok=True)
+    
+            thumb_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            thumbnail_path = f"{thumb_dir}/thumb_{thumb_timestamp}.jpg"
+    
+            # Auto-detect emotion from hook
+            hook_lower = script['hook'].lower()
+            if any(word in hook_lower for word in ['money', 'cash', 'profit', 'earn']):
+                emotion = 'money'
+            elif any(word in hook_lower for word in ['insane', 'crazy', 'shocking', 'unbelievable']):
+                emotion = 'shock'
+            elif any(word in hook_lower for word in ['new', 'trending', 'hot', 'viral']):
+                emotion = 'viral'
+            else:
+                emotion = 'attention'
+    
+                thumbnail_path = thumbnail_gen.generate_viral_thumbnail(
+                hook=script['hook'][:30],  # 3-5 words max
+                topic=script.get('topic', 'AI tools'),
+                output_path=thumbnail_path,
+                emotion=emotion
                 )
-                
-                if thumbnail_path and os.path.exists(thumbnail_path):
-                    logger.info(f"✅ AI Thumbnail generated: {thumbnail_path}")
-                    logger.info(f"   Style: {style}")
-                else:
-                    logger.warning("⚠️ Thumbnail generation returned None")
-                    thumbnail_path = None
-                
-            except ImportError:
-                logger.warning("⚠️ thumbnail_ai_generator.py not found - skipping thumbnails")
-                thumbnail_path = None
-            except Exception as e:
-                logger.error(f"❌ Thumbnail generation error: {e}")
+    
+                logger.info(f"✅ VIRAL thumbnail: {thumbnail_path}")
+    
+                except Exception as e:
+                logger.error(f"❌ Thumbnail error: {e}") 
                 import traceback
                 traceback.print_exc()
                 thumbnail_path = None
