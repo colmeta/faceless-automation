@@ -138,6 +138,7 @@ class YouTubeUploader:
         category: str = "28",  # Science & Technology
         privacy: str = "public",
         made_for_kids: bool = False
+        thumbnail_path: str = None
     ) -> Dict:
         """Upload video to YouTube"""
         
@@ -194,6 +195,22 @@ class YouTubeUploader:
                         last_progress = progress
             
             video_id = response['id']
+            # Upload thumbnail if provided
+    if thumbnail_path and os.path.exists(thumbnail_path):
+        try:
+            logger.info(f"📸 Uploading custom thumbnail...")
+            
+            from googleapiclient.http import MediaFileUpload
+            
+            self.youtube.thumbnails().set(
+                videoId=video_id,
+                media_body=MediaFileUpload(thumbnail_path)
+            ).execute()
+            
+            logger.info(f"✅ Custom thumbnail uploaded successfully!")
+        except Exception as e:
+            logger.warning(f"⚠️ Thumbnail upload failed: {e}")
+    # 👆 END THUMBNAIL UPLOAD
             video_url = f"https://www.youtube.com/watch?v={video_id}"
             
             logger.info(f"✅ Upload complete!")
@@ -219,6 +236,7 @@ class YouTubeUploader:
         topic: str,
         hashtags: list,
         affiliate_link: str = None
+        thumbnail_path: str = None
     ) -> Dict:
         """Upload with YouTube Shorts optimization"""
         
@@ -260,6 +278,7 @@ class YouTubeUploader:
             tags=tags,
             category="28",
             privacy="public"
+            thumbnail_path=thumbnail_path
         )
 
 
