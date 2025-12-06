@@ -176,7 +176,7 @@ IMPORTANT: Return ONLY valid JSON, no markdown or extra text."""
         
         try:
             logger.info("🔵 Analyzing with Gemini...")
-            model = genai.GenerativeModel('gemini-2.0-flash')
+            model = genai.GenerativeModel('models/gemini-1.5-flash')
             
             response = model.generate_content(
                 f"{self.get_analysis_prompt()}\n\nTranscript:\n{transcript[:8000]}"
