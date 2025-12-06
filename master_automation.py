@@ -735,10 +735,7 @@ class MasterOrchestrator:
             self.video_composer.generate_voice_and_video(script, output_path)
             
             logger.info("✅ Video generated successfully")
-
-            # ==================== AI THUMBNAIL GENERATION ====================
-logger.info("✅ Video generated successfully")
-
+            
             # ==================== AI THUMBNAIL GENERATION ====================
             thumbnail_path = None
             try:
@@ -790,8 +787,7 @@ logger.info("✅ Video generated successfully")
                 traceback.print_exc()
                 thumbnail_path = None
             # ==================== END THUMBNAIL GENERATION ====================
-# ==================== END THUMBNAIL GENERATION ====================
-    
+            
             # PHASE 3: Upload to YouTube
             logger.info("\n📍 PHASE 3: YouTube upload...")
             youtube_url = None
