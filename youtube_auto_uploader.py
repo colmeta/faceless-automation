@@ -137,8 +137,8 @@ class YouTubeUploader:
         tags: list = None,
         category: str = "28",  # Science & Technology
         privacy: str = "public",
-        made_for_kids: bool = False
-        thumbnail_path: str = None
+        made_for_kids: bool = False,
+        thumbnail_path: str = None  # FIXED: Added missing comma
     ) -> Dict:
         """Upload video to YouTube"""
         
@@ -195,22 +195,21 @@ class YouTubeUploader:
                         last_progress = progress
             
             video_id = response['id']
+            
             # Upload thumbnail if provided
-    if thumbnail_path and os.path.exists(thumbnail_path):
-        try:
-            logger.info(f"📸 Uploading custom thumbnail...")
+            if thumbnail_path and os.path.exists(thumbnail_path):
+                try:
+                    logger.info(f"📸 Uploading custom thumbnail...")
+                    
+                    self.youtube.thumbnails().set(
+                        videoId=video_id,
+                        media_body=MediaFileUpload(thumbnail_path)
+                    ).execute()
+                    
+                    logger.info(f"✅ Custom thumbnail uploaded successfully!")
+                except Exception as e:
+                    logger.warning(f"⚠️ Thumbnail upload failed: {e}")
             
-            from googleapiclient.http import MediaFileUpload
-            
-            self.youtube.thumbnails().set(
-                videoId=video_id,
-                media_body=MediaFileUpload(thumbnail_path)
-            ).execute()
-            
-            logger.info(f"✅ Custom thumbnail uploaded successfully!")
-        except Exception as e:
-            logger.warning(f"⚠️ Thumbnail upload failed: {e}")
-    # 👆 END THUMBNAIL UPLOAD
             video_url = f"https://www.youtube.com/watch?v={video_id}"
             
             logger.info(f"✅ Upload complete!")
@@ -235,8 +234,8 @@ class YouTubeUploader:
         hook: str,
         topic: str,
         hashtags: list,
-        affiliate_link: str = None
-        thumbnail_path: str = None
+        affiliate_link: str = None,
+        thumbnail_path: str = None  # FIXED: Added missing comma
     ) -> Dict:
         """Upload with YouTube Shorts optimization"""
         
@@ -277,7 +276,7 @@ class YouTubeUploader:
             description=description,
             tags=tags,
             category="28",
-            privacy="public"
+            privacy="public",
             thumbnail_path=thumbnail_path
         )
 
