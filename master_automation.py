@@ -848,7 +848,7 @@ class MasterOrchestrator:
             
             # ==================== AI THUMBNAIL GENERATION ====================
             thumbnail_path = None
-        try:
+            try:
             logger.info("\n🎨 Generating VIRAL thumbnail...")
             thumbnail_gen = ViralThumbnailGenerator()
     
