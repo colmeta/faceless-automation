@@ -413,7 +413,7 @@ class VideoComposerFixed:
             return None
 
     def generate_voice_and_video(self, script: dict, output_path: str) -> str:
-        """Generate voice and video with CORRECT AI VIDEO PRIORITY CHAIN"""
+        """Generate voice and video - B-ROLL PRIMARY (NO AI VIDEO APIS)"""
         try:
             from moviepy import TextClip, CompositeVideoClip, AudioFileClip, VideoFileClip, vfx
             from moviepy.video.VideoClip import ColorClip
@@ -431,7 +431,7 @@ class VideoComposerFixed:
             audio = None
             actual_duration = 0
             
-            #  --------------------------------------------------------
+            # --------------------------------------------------------
             # 🎤 STEP 1: Generate Voice
             # --------------------------------------------------------
             logger.info(f"🔊 Generating voice: '{narration[:50]}...'")
@@ -472,37 +472,147 @@ class VideoComposerFixed:
             actual_duration = audio.duration
             
             # --------------------------------------------------------
-            # 🎬 STEP 2: Generate Background - CORRECT Priority Chain
+            # 🎬 STEP 2: Generate Background - NEW PRIORITY CHAIN
             # --------------------------------------------------------
             
-            # 🥇 PRIORITY 1: AI Video Generators (Kling, Runway, Replicate, Pixverse)
-            if AI_VIDEO_AVAILABLE and background is None:
-                try:
-                    logger.info("🤖 PRIORITY 1: Trying AI Video Generators...")
-                    ai_gen = AIVideoGenerator()
-                    ai_video_path = ai_gen.generate_contextual_video(
-                        topic=script.get('topic', 'technology'),
-                        narration=narration,
-                        duration=actual_duration,
-                        output_path="temp/ai_generated.mp4"
-                    )
+            # 🥇 PRIORITY 1: Pexels B-roll (FREE & HIGH QUALITY)
+            try:
+                logger.info("🎬 PRIORITY 1: Fetching Pexels B-roll...")
+                broll_dir = "temp/broll"
+                os.makedirs(broll_dir, exist_ok=True)
+                topic = script.get('topic', 'technology')
+                num_clips = min(4, max(2, int(actual_duration / 5)))
+                
+                fetched_clips = self.broll_fetcher.fetch_broll_sequence(topic, num_clips, broll_dir)
+                
+                if fetched_clips:
+                    logger.info(f"✅ Fetched {len(fetched_clips)} B-roll clips")
+                    bg_path = self.create_background_with_ffmpeg(fetched_clips, actual_duration)
                     
-                    if ai_video_path and os.path.exists(ai_video_path) and os.path.getsize(ai_video_path) > 1000:
-                        logger.info(f"✅ AI video generated: {ai_video_path}")
-                        background = VideoFileClip(ai_video_path)
+                    if bg_path and os.path.exists(bg_path):
+                        background = VideoFileClip(bg_path)
+                        logger.info("✅ Using Pexels B-roll video")
+                else:
+                    logger.warning("⚠️ B-roll fetch failed")
+                    
+            except Exception as e:
+                logger.warning(f"⚠️ B-roll generation failed: {e}")
+            
+            # 🥈 PRIORITY 2: Assets folder
+            if background is None:
+                local_bg = "assets/background.mp4"
+                if os.path.exists(local_bg):
+                    try:
+                        logger.info("📂 PRIORITY 2: Using assets/background.mp4")
+                        video_clip = VideoFileClip(local_bg)
                         
-                        # Resize if needed
-                        if background.w != 720 or background.h != 1280:
-                            background = background.resized(height=1280)
-                            if background.w != 720:
-                                background = background.with_effects([vfx.Crop(x1=int((background.w-720)/2), width=720, height=1280)])
+                        if video_clip.duration < actual_duration:
+                            video_clip = video_clip.with_effects([vfx.Loop(duration=actual_duration)])
+                        else:
+                            video_clip = video_clip.subclipped(0, actual_duration)
                         
-                        logger.info("✅ Using AI-generated video")
-                    else:
-                        logger.warning("⚠️ AI video generation returned invalid file")
+                        background = video_clip.resized(height=1280)
+                        if background.w != 720:
+                            background = background.with_effects([vfx.Crop(x1=int(background.w/2 - 360), width=720, height=1280)])
                         
-                except Exception as e:
-                    logger.warning(f"⚠️ AI video generation failed: {e}")
+                        logger.info("✅ Using assets video")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Assets video failed: {e}")
+            
+            # 🥉 PRIORITY 3: ColorClip with varied colors (FINAL FALLBACK)
+            if background is None:
+                logger.warning("⚠️ All methods failed - using ColorClip")
+                
+                base_colors = [
+                    (20, 20, 60), (60, 20, 60), (20, 60, 60), (60, 30, 20),
+                    (20, 40, 60), (40, 20, 50), (10, 50, 40), (70, 20, 30)
+                ]
+                
+                seed = int(datetime.now().strftime("%H%M%S"))
+                color = base_colors[seed % len(base_colors)]
+                
+                logger.info(f"🎨 Using color: RGB{color}")
+                
+                background = ColorClip(size=(720, 1280), color=color, duration=actual_duration)
+            
+            # --------------------------------------------------------
+            # 🎨 STEP 3: Add Text Overlays
+            # --------------------------------------------------------
+            try:
+                hook_text = TextClip(
+                    text=script['hook'][:40].upper(),
+                    font_size=60,
+                    color='yellow',
+                    stroke_color='black',
+                    stroke_width=2,
+                    method='caption',
+                    size=(1000, None)
+                ).with_position('center').with_duration(min(3, actual_duration))
+                
+                hook_text = hook_text.with_effects([vfx.FadeIn(0.5)])
+            except Exception as e:
+                logger.warning(f"⚠️ Hook text failed: {e}")
+                hook_text = None
+            
+            try:
+                cta_text = TextClip(
+                    text=script['cta'][:30].upper(),
+                    font_size=50,
+                    color='white',
+                    bg_color='red',
+                    method='caption',
+                    size=(1000, None)
+                ).with_position(('center', 'bottom')).with_start(
+                    max(0, actual_duration - 2)
+                ).with_duration(min(2, actual_duration))
+            except Exception as e:
+                logger.warning(f"⚠️ CTA text failed: {e}")
+                cta_text = None
+            
+            # --------------------------------------------------------
+            # 🎞️ STEP 4: Composite & Export
+            # --------------------------------------------------------
+            clips = [background]
+            if hook_text:
+                clips.append(hook_text)
+            if cta_text:
+                clips.append(cta_text)
+            
+            final_video = CompositeVideoClip(clips, size=(720, 1280))
+            final_video = final_video.with_audio(audio)
+            
+            logger.info(f"💾 Writing video to {output_path}...")
+            final_video.write_videofile(
+                output_path,
+                fps=30,
+                codec='libx264',
+                audio_codec='aac',
+                bitrate='3000k',
+                preset='ultrafast',
+                threads=1,
+                logger=None
+            )
+            
+            logger.info(f"✅ Video created: {output_path} ({actual_duration:.2f}s)")
+            
+            # Cleanup
+            audio.close()
+            background.close()
+            final_video.close()
+            gc.collect()
+            
+            try:
+                os.remove(voice_path)
+            except:
+                pass
+            
+            return output_path
+            
+        except Exception as e:
+            logger.error(f"❌ Video creation failed: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
             
             # 🥈 PRIORITY 2: Stock B-roll (Pexels/Pixabay)
             if background is None:
